@@ -21,6 +21,25 @@ class Settings(BaseSettings):
     organizer_contact: str = "@organizer"
     support_chat_id: int = 0
 
+    # Booking configuration.
+    # consultation_slot_minutes: length of each Anna Barinova consultation
+    #   slot (16:00-19:00 is divided into back-to-back slots of this length).
+    # waitlist_confirm_minutes: how long a promoted waitlist user has to
+    #   confirm an offered spot before it passes to the next person.
+    consultation_slot_minutes: int = 20
+    waitlist_confirm_minutes: int = 15
+
+    # Time-driven (ticker) windows, in minutes before an activity starts:
+    #   reminder_minutes: plain reminder (only for activities that DON'T
+    #       require confirmation; otherwise the confirmation request below
+    #       serves as the reminder and carries the location).
+    #   confirmation_minutes: when to ask the user to confirm attendance.
+    #   auto_release_minutes: if still unconfirmed by this point, release
+    #       the seat as a no-show and promote the waitlist.
+    reminder_minutes: int = 15
+    confirmation_minutes: int = 30
+    auto_release_minutes: int = 5
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
     @property

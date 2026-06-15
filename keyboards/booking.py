@@ -85,6 +85,104 @@ def activity_picker_keyboard(day: int, slot: Slot) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
+def consultation_picker_keyboard(day: int, slots: list[tuple]) -> InlineKeyboardMarkup:
+    """
+    Per-slot consultation picker: one button per 15-min slot.
+
+    `slots` is a list of (Activity, booked_count) for the consultation
+    slots, ordered by start time. Free slots are bookable; taken ones
+    offer the waitlist.
+    """
+    from utils.time_utils import format_time
+
+    rows: list[list[InlineKeyboardButton]] = []
+
+    for activity, booked in slots:
+        time_label = format_time(activity.start_time)
+        if seats_free(activity.capacity, booked) > 0:
+            rows.append([
+                InlineKeyboardButton(
+                    text=t.CONSULTATION_SLOT_FREE.format(time=time_label),
+                    callback_data=f"bookact:{activity.id}",
+                )
+            ])
+        else:
+            rows.append([
+                InlineKeyboardButton(
+                    text=t.CONSULTATION_SLOT_TAKEN.format(time=time_label),
+                    callback_data=f"bookwait:{activity.id}",
+                )
+            ])
+
+    rows.append([InlineKeyboardButton(text=t.BACK_TO_DAYS_BUTTON, callback_data=f"bookday:{day}")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def confirm_booking_keyboard(activity_id: int, back_cb: str) -> InlineKeyboardMarkup:
+    """Confirmation card: confirm / edit data / back to where the user came from."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=t.CONFIRM_BUTTON, callback_data=f"bookconfirm:{activity_id}")],
+            [InlineKeyboardButton(text=t.CONFIRM_EDIT_DATA_BUTTON, callback_data="bookeditdata")],
+            [InlineKeyboardButton(text=t.CONFIRM_CANCEL_BUTTON, callback_data=back_cb)],
+        ]
+    )
+
+
+def conflict_keyboard(conflict_booking_id: int, conflict_title: str, back_cb: str) -> InlineKeyboardMarkup:
+    """Offer to cancel the conflicting booking, or go back."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=t.CONFLICT_CANCEL_BUTTON.format(conflict_title=_truncate(conflict_title, 20)),
+                    callback_data=f"bookcancel:{conflict_booking_id}",
+                )
+            ],
+            [InlineKeyboardButton(text=t.CONFIRM_CANCEL_BUTTON, callback_data=back_cb)],
+        ]
+    )
+
+
+def full_offer_waitlist_keyboard(activity_id: int, back_cb: str) -> InlineKeyboardMarkup:
+    """When an activity is full: offer to join the waitlist, or go back."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=t.JOIN_WAITLIST_BUTTON, callback_data=f"bookwaitjoin:{activity_id}")],
+            [InlineKeyboardButton(text=t.CONFIRM_CANCEL_BUTTON, callback_data=back_cb)],
+        ]
+    )
+
+
+def booked_ok_keyboard(day: int, back_cb: str) -> InlineKeyboardMarkup:
+    """Shown after a successful booking: return to where the user came from (same day)."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=t.BACK_TO_DAY_BUTTON.format(day=day), callback_data=back_cb)]
+        ]
+    )
+
+
+def waitlist_offer_keyboard(entry_id: int) -> InlineKeyboardMarkup:
+    """Buttons sent to a promoted waitlist user: confirm / decline the freed spot."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=t.WAITLIST_OFFER_CONFIRM_BUTTON, callback_data=f"wlconfirm:{entry_id}")],
+            [InlineKeyboardButton(text=t.WAITLIST_OFFER_DECLINE_BUTTON, callback_data=f"wldecline:{entry_id}")],
+        ]
+    )
+
+
+def attendance_keyboard(booking_id: int) -> InlineKeyboardMarkup:
+    """Attendance-confirmation buttons sent 30 min before an activity."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=t.CONFIRM_ATTENDANCE_BUTTON, callback_data=f"attyes:{booking_id}")],
+            [InlineKeyboardButton(text=t.CANT_MAKE_BUTTON, callback_data=f"attno:{booking_id}")],
+        ]
+    )
+
+
 def _truncate(text: str, max_length: int) -> str:
     if len(text) <= max_length:
         return text

@@ -32,8 +32,118 @@ BACK_TO_DAYS_BUTTON = "⬅️ Обрати інший день"
 # Consultation slot button (leads into the per-slot consultation picker)
 CONSULTATION_SLOT_BUTTON = "🩺 {time_range} · Консультації Анни Барінової"
 
-# Placeholder until booking actions / consultation picker are wired up.
-BOOKING_COMING_SOON = "🚧 Запис на цю активність буде доступний найближчим часом."
-CONSULTATION_COMING_SOON = "🚧 Запис на консультації буде доступний найближчим часом."
+# --- Consultation slot picker ---------------------------------------------
+CONSULTATION_PICKER_HEADER = (
+    "🩺 <b>Консультації Анни Барінової</b>\n"
+    "{time_range}\n\n"
+    "Оберіть вільний час для індивідуальної консультації (15 хв) 👇"
+)
+CONSULTATION_SLOT_FREE = "🟢 {time}"
+CONSULTATION_SLOT_TAKEN = "🔴 {time} (зайнято)"
+CONSULTATION_NONE_FREE = (
+    "🩺 <b>Консультації Анни Барінової</b>\n\n"
+    "На жаль, усі слоти наразі зайняті. "
+    "Ви можете приєднатись до листа очікування на конкретний час."
+)
+
+# --- Booking confirmation card --------------------------------------------
+CONFIRM_BOOKING = (
+    "Підтвердьте запис 👇\n\n"
+    "🗓 <b>{title}</b>\n"
+    "🕒 {time_range}\n\n"
+    "Ваші дані:\n"
+    "👤 {full_name}\n"
+    "📱 {phone}\n\n"
+    "Все вірно?"
+)
+CONFIRM_BUTTON = "✅ Підтвердити запис"
+CONFIRM_EDIT_DATA_BUTTON = "✏️ Змінити мої дані"
+CONFIRM_CANCEL_BUTTON = "⬅️ Назад"
+# After a successful booking — return to the same day's slot list to book more.
+BACK_TO_DAY_BUTTON = "⬅️ Повернутись до Дня {day}"
+
+# --- Booking outcome messages ---------------------------------------------
+BOOKED_OK = (
+    "✅ Готово! Вас записано:\n\n"
+    "🗓 <b>{title}</b>\n"
+    "🕒 {time_range}\n\n"
+    "Нагадування надішлемо перед початком. Керувати записами можна в «📋 Мої записи»."
+)
+ALREADY_BOOKED = "Ви вже записані на «{title}» 🙂"
+CONFLICT_FOUND = (
+    "⚠️ На цей час у вас вже є запис:\n\n"
+    "🗓 <b>{conflict_title}</b>\n"
+    "🕒 {conflict_time}\n\n"
+    "Не можна бути у двох місцях одночасно. "
+    "Спершу скасуйте попередній запис, якщо хочете змінити вибір."
+)
+CONFLICT_CANCEL_BUTTON = "❌ Скасувати «{conflict_title}»"
+ACTIVITY_FULL_OFFER_WAITLIST = (
+    "😔 На жаль, місць на «{title}» вже немає.\n\n"
+    "Хочете приєднатись до листа очікування? Якщо місце звільниться, "
+    "ми одразу повідомимо вас."
+)
+JOIN_WAITLIST_BUTTON = "🔔 Так, у лист очікування"
+BOOKING_NOT_FOUND = "Не вдалося знайти цю активність. Спробуйте ще раз."
+
+# --- Waitlist outcome messages --------------------------------------------
+WAITLIST_JOINED = (
+    "🔔 Вас додано до листа очікування на «{title}».\n"
+    "Ваша позиція в черзі: <b>{position}</b>.\n\n"
+    "Щойно звільниться місце, ми надішлемо вам запрошення підтвердити запис."
+)
+WAITLIST_ALREADY = "Ви вже у листі очікування на «{title}» 🙂"
+WAITLIST_SEAT_AVAILABLE = "Гарні новини — місце звільнилося! Спробуйте записатись ще раз."
+
+# --- Waitlist promotion (offer) notification ------------------------------
+WAITLIST_OFFER = (
+    "🎉 Звільнилося місце на «{title}»!\n"
+    "🕒 {time_range}\n\n"
+    "Підтвердьте, будь ласка, протягом {minutes} хв, інакше місце "
+    "перейде наступному в черзі."
+)
+WAITLIST_OFFER_CONFIRM_BUTTON = "✅ Підтвердити запис"
+WAITLIST_OFFER_DECLINE_BUTTON = "❌ Відмовитись"
+WAITLIST_OFFER_CONFIRMED = (
+    "✅ Чудово! Вас записано на «{title}». Деталі — у «📋 Мої записи»."
+)
+WAITLIST_OFFER_DECLINED = "Зрозуміло, місце передамо наступному. Дякуємо!"
+WAITLIST_OFFER_EXPIRED = "На жаль, час підтвердження минув, і місце вже передано далі."
+WAITLIST_OFFER_TAKEN = "На жаль, місце вже зайняте."
+
+# Placeholder kept for any not-yet-wired callbacks.
+BOOKING_COMING_SOON = "🚧 Ця дія буде доступна найближчим часом."
+
+# --- Time-driven notifications (ticker) -----------------------------------
+REMINDER = (
+    "⏰ Нагадування!\n\n"
+    "🗓 <b>{title}</b>\n"
+    "🕒 {time_range}\n"
+    "📍 {location}\n\n"
+    "Скоро початок — чекаємо на вас 🙂"
+)
+
+CONFIRMATION_REQUEST = (
+    "⏰ Зовсім скоро починається:\n\n"
+    "🗓 <b>{title}</b>\n"
+    "🕒 {time_range}\n"
+    "📍 {location}\n\n"
+    "Підтвердьте, будь ласка, що будете — інакше місце звільниться для інших."
+)
+CONFIRM_ATTENDANCE_BUTTON = "✅ Я буду"
+CANT_MAKE_BUTTON = "❌ Не зможу"
+
+ATTENDANCE_CONFIRMED = "✅ Дякуємо! Чекаємо на вас 🙂"
+ATTENDANCE_DECLINED = "Зрозуміло, дякуємо що попередили. Місце передамо іншим."
+ATTENDANCE_EXPIRED = "На жаль, час підтвердження минув."
+
+NO_SHOW_RELEASED = (
+    "⌛️ Ви не підтвердили участь, тож місце на «{title}» звільнено.\n"
+    "Якщо плани змінились — можете записатись знову, якщо є вільні місця."
+)
+
+BOOKING_ABORTED = "Скасовано."
+EDIT_DATA_PROMPT = "Оновіть дані в профілі, а потім поверніться до запису 🙂"
+CONFLICT_CANCELLED = "Попередній запис скасовано. Тепер можете обрати інший варіант 🙂"
 
 NO_ACTIVITIES_FOR_DAY = "На цей день активностей не знайдено."

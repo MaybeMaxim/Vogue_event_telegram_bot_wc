@@ -77,3 +77,9 @@ async def get_activities_in_slot(
         for activity, booked in all_activities
         if activity.start_time == start_time and activity.end_time == end_time
     ]
+
+
+async def get_consultation_slots(session: AsyncSession, day: int) -> list[tuple[Activity, int]]:
+    """Return all consultation-slot activities for a day, ordered by start time, with seat counts."""
+    all_activities = await get_activities_for_day(session, day)
+    return [(a, booked) for a, booked in all_activities if a.is_consultation_slot]

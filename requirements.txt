@@ -3,3 +3,4 @@ sqlalchemy>=2.0
 aiosqlite
 greenlet
 pydantic-settings
+apscheduler>=3.10

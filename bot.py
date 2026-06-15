@@ -11,10 +11,12 @@ from db.base import async_session, init_db
 from handlers.registration import router as registration_router
 from handlers.schedule import router as schedule_router
 from handlers.booking import router as booking_router
+from handlers.my_bookings import router as my_bookings_router
 from handlers.profile import router as profile_router
 from handlers.support import router as support_router
 from middlewares.registration_check import RegistrationRequiredMiddleware
 from middlewares.menu_state_reset import MenuStateResetMiddleware
+from scheduler.ticker import start_ticker
 
 
 class DbSessionMiddleware:
@@ -34,6 +36,10 @@ async def main() -> None:
     bot = Bot(token=settings.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher(storage=MemoryStorage())
 
+    # Start the time-driven ticker (reminders, confirmations, no-show
+    # release, waitlist expiry).
+    start_ticker(bot)
+
     dp.update.middleware(DbSessionMiddleware())
     dp.update.middleware(RegistrationRequiredMiddleware())
 
@@ -44,6 +50,7 @@ async def main() -> None:
     dp.include_router(registration_router)
     dp.include_router(schedule_router)
     dp.include_router(booking_router)
+    dp.include_router(my_bookings_router)
     dp.include_router(profile_router)
     dp.include_router(support_router)
 
