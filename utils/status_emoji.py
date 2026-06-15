@@ -41,3 +41,16 @@ def availability_text(capacity: int, booked: int) -> str:
         return f"{emoji} Місць немає"
 
     return f"{emoji} Вільно: {free} з {capacity}"
+
+
+def seats_text(capacity: int, booked: int) -> str:
+    """
+    Compact seat count without the dot, for one-line cards where the
+    dot is rendered separately, e.g. "14 з 20" or "немає місць".
+    """
+    free = seats_free(capacity, booked)
+
+    if free <= 0:
+        return "немає місць"
+
+    return f"{free} з {capacity}"

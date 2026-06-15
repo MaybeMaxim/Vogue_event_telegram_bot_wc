@@ -52,6 +52,35 @@ def normalize_full_name(raw: str) -> str | None:
     return cleaned
 
 
+def normalize_name_part(raw: str) -> str | None:
+    """
+    Validate and normalize a SINGLE name part (e.g. just a surname).
+
+    Used when the first name is already known (from a shared contact)
+    and we only need the user to supply the missing part. Accepts a
+    single word (1..40 chars, no digits/underscores).
+
+    Returns the cleaned single word, or None if invalid.
+    """
+    if not raw:
+        return None
+
+    cleaned = " ".join(raw.split())
+
+    if not (2 <= len(cleaned) <= 40):
+        return None
+
+    if " " in cleaned:
+        # More than one word -> not a single name part; the caller should
+        # treat this as a full-name entry instead.
+        return None
+
+    if not _NAME_PATTERN.match(cleaned):
+        return None
+
+    return cleaned
+
+
 def normalize_phone(raw: str) -> str | None:
     """
     Validate and normalize a phone number string.

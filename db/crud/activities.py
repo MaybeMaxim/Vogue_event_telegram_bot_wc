@@ -60,3 +60,20 @@ async def get_booked_count(session: AsyncSession, activity_id: int) -> int:
     )
     result = await session.execute(stmt)
     return int(result.scalar_one())
+
+
+async def get_activities_in_slot(
+    session: AsyncSession, day: int, start_time, end_time
+) -> list[tuple[Activity, int]]:
+    """
+    Return the activities sharing one exact (start_time, end_time) window
+    on the given day, each paired with its occupied-seat count.
+
+    Used by the booking drill-down once a user has picked a time slot.
+    """
+    all_activities = await get_activities_for_day(session, day)
+    return [
+        (activity, booked)
+        for activity, booked in all_activities
+        if activity.start_time == start_time and activity.end_time == end_time
+    ]

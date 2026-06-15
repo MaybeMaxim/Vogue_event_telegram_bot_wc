@@ -125,7 +125,7 @@ def build_seed_activities() -> list[Activity]:
             start_time=day1_start,
             end_time=day1_end,
             capacity=20,
-            description="Тест-драйв — детальний опис додамо пізніше.",
+            description="Спробуйте автомобіль на тестовому маршруті разом з інструктором.",
             speaker_name=None,
             speaker_social_url=None,
             location_text="Зона тест-драйву",  # TODO location
@@ -141,7 +141,7 @@ def build_seed_activities() -> list[Activity]:
             start_time=day1_start,
             end_time=day1_end,
             capacity=20,
-            description="Фейс-масаж — детальний опис додамо пізніше.",
+            description="Розслаблюючий масаж обличчя від професійних майстрів.",
             speaker_name=None,
             speaker_social_url=None,
             location_text="Зона фейс-масажу",  # TODO location
@@ -157,7 +157,7 @@ def build_seed_activities() -> list[Activity]:
             start_time=day1_start,
             end_time=day1_end,
             capacity=20,
-            description="Екскурсія територією — детальний опис додамо пізніше.",
+            description="Прогулянка територією заходу з гідом.",
             speaker_name=None,
             speaker_social_url=None,
             location_text="Збір біля головного входу",  # TODO location
@@ -177,7 +177,7 @@ def build_seed_activities() -> list[Activity]:
             start_time=_dt(1, 16, 0),
             end_time=_dt(1, 17, 0),
             capacity=60,
-            description="Лекція Garden Therapy — детальний опис додамо пізніше.",
+            description="Про терапевтичну силу садівництва та зв'язок із природою.",
             speaker_name="Соня Солтес",
             speaker_social_url=None,
             location_text="Лекційний зал",  # TODO location
@@ -200,7 +200,7 @@ def build_seed_activities() -> list[Activity]:
             start_time=day2_slot1_start,
             end_time=day2_slot1_end,
             capacity=20,
-            description="Барре — детальний опис додамо пізніше.",
+            description="Заняття біля станка для гнучкості, постави та тонусу м'язів.",
             speaker_name=None,
             speaker_social_url=None,
             location_text="Зала для групових занять",  # TODO location
@@ -216,7 +216,7 @@ def build_seed_activities() -> list[Activity]:
             start_time=day2_slot1_start,
             end_time=day2_slot1_end,
             capacity=20,
-            description="Тест-драйв — детальний опис додамо пізніше.",
+            description="Спробуйте автомобіль на тестовому маршруті разом з інструктором.",
             speaker_name=None,
             speaker_social_url=None,
             location_text="Зона тест-драйву",  # TODO location
@@ -239,7 +239,7 @@ def build_seed_activities() -> list[Activity]:
             start_time=day2_slot2_start,
             end_time=day2_slot2_end,
             capacity=20,
-            description="Sound healing — детальний опис додамо пізніше.",
+            description="Звукова медитація зі співочими чашами для глибокого розслаблення.",
             speaker_name=None,
             speaker_social_url=None,
             location_text="Зала для звукових практик",  # TODO location
@@ -255,7 +255,7 @@ def build_seed_activities() -> list[Activity]:
             start_time=day2_slot2_start,
             end_time=day2_slot2_end,
             capacity=20,
-            description="Тест-драйв — детальний опис додамо пізніше.",
+            description="Спробуйте автомобіль на тестовому маршруті разом з інструктором.",
             speaker_name=None,
             speaker_social_url=None,
             location_text="Зона тест-драйву",  # TODO location

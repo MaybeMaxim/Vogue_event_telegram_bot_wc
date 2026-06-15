@@ -87,7 +87,12 @@ async def save_profile(callback: CallbackQuery, state: FSMContext, session: Asyn
     await state.clear()
 
     await callback.message.answer(t.REGISTRATION_COMPLETE.format(full_name=user.full_name))
-    await callback.message.answer(t.MAIN_MENU_INTRO, reply_markup=main_menu_keyboard())
+    # Send the long intro WITHOUT the keyboard, then attach the reply
+    # keyboard to a short prompt. On mobile, tapping a reply-keyboard
+    # button quotes the message the keyboard is anchored to, so anchoring
+    # it to a short line keeps that quote unobtrusive.
+    await callback.message.answer(t.MAIN_MENU_INTRO)
+    await callback.message.answer(t.MAIN_MENU_PROMPT, reply_markup=main_menu_keyboard())
 
 
 # ---------------------------------------------------------------------------

@@ -23,6 +23,7 @@ from keyboards.registration import (
     group_chat_redirect_keyboard,
     name_or_contact_keyboard,
     phone_request_keyboard,
+    remove_keyboard,
     start_registration_keyboard,
 )
 from states.registration import Registration
@@ -30,6 +31,7 @@ from texts import registration as t
 from utils.validators import (
     is_usable_first_name,
     normalize_full_name,
+    normalize_name_part,
     normalize_phone,
     normalize_telegram_contact_name,
 )
@@ -180,7 +182,10 @@ async def handle_shared_contact(message: Message, state: FSMContext) -> None:
         await message.answer(t.INVALID_PHONE)
         return
 
-    await state.update_data(phone=phone)
+    # Remove the "Share contact" reply keyboard now that we have the contact.
+    await message.answer(t.CONTACT_RECEIVED, reply_markup=remove_keyboard())
+
+    await state.update_data(phone=phone, tg_first_name=contact.first_name)
 
     derived_name = normalize_telegram_contact_name(contact.first_name, contact.last_name)
     if derived_name is not None:
@@ -205,8 +210,7 @@ async def _offer_derived_name(message: Message, state: FSMContext, derived_name:
 
 
 async def _ask_for_surname_after_contact(message: Message, state: FSMContext, first_name: str | None) -> None:
-    """Surname missing or unusable: store first_name (for the prompt) and ask for full name."""
-    await state.update_data(tg_first_name=first_name)
+    """Surname missing or unusable: ask for it (tg_first_name already stored upstream)."""
     await state.set_state(Registration.name_only)
 
     if first_name and is_usable_first_name(first_name):
@@ -222,23 +226,30 @@ async def _ask_for_surname_after_contact(message: Message, state: FSMContext, fi
 @router.message(Registration.name_only, F.text)
 async def handle_name_only(message: Message, state: FSMContext) -> None:
     """
-    Receive a full name while in the name_only state.
+    Receive a name while in the name_only state.
 
-    Two distinct callers land here:
-    - First-time registration: contact share gave phone but no usable
-      surname (state set by _ask_for_surname_after_contact). Email is
-      not yet known -> proceed to the email step.
-    - Editing from the preview screen (confirm.start_edit_name): email
-      is already known -> return to the preview.
+    Three callers land here:
+    - After a contact share that gave a usable first name but no surname:
+      the user only needs to type their SURNAME, which we combine with
+      the known first name into "Прізвище Ім'я".
+    - After a contact share with no usable name at all: the user types
+      their full "Прізвище Ім'я".
+    - Editing the name from the preview screen: same as above, but email
+      is already known so we return to the preview.
     """
-    cleaned = normalize_full_name(message.text)
+    data = await state.get_data()
+    known_first = data.get("tg_first_name")
 
-    if cleaned is None:
+    full_name = _resolve_name_only_input(message.text, known_first)
+
+    if full_name is None:
         await message.answer(t.INVALID_NAME)
         return
 
-    await state.update_data(full_name=cleaned)
-    data = await state.get_data()
+    await state.update_data(full_name=full_name)
+    # The first name has now been folded into full_name; drop the hint so
+    # a later edit from the preview asks for the full name, not a surname.
+    await state.update_data(tg_first_name=None)
 
     if "email" in data:
         from handlers.registration.confirm import show_profile_preview
@@ -248,6 +259,26 @@ async def handle_name_only(message: Message, state: FSMContext) -> None:
     else:
         await state.set_state(Registration.email)
         await message.answer(t.ASK_EMAIL)
+
+
+def _resolve_name_only_input(raw: str, known_first: str | None) -> str | None:
+    """
+    Turn the user's input at the name_only step into a full name.
+
+    If we already know a usable first name and the user typed a single
+    word, treat that word as the surname and combine into "Прізвище Ім'я".
+    Otherwise, validate the input as a complete full name.
+
+    Returns the full name, or None if the input is invalid.
+    """
+    if known_first and is_usable_first_name(known_first):
+        surname = normalize_name_part(raw)
+        if surname is not None:
+            return f"{surname} {known_first.strip()}"
+        # Not a single word -> fall through and accept it as a full name
+        # (covers the user typing "Прізвище Ім'я" in full anyway).
+
+    return normalize_full_name(raw)
 
 
 @router.message(Registration.name_only, ~F.text)

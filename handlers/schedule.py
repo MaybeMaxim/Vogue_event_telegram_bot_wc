@@ -1,16 +1,11 @@
 """
-Handler for the "📅 Розклад" main menu section.
+Handler for the "📅 Розклад" main menu section (read-only).
 
 Flow:
-  main menu "📅 Розклад" -> day picker (Day 1 / Day 2)
-  -> tap a day -> full schedule for that day, with per-activity
-     "Записатись" / "У лист очікування" buttons and a button to
-     switch back to the day picker.
+  "📅 Розклад" -> day picker -> tap a day -> clean schedule overview
+  for that day, with a button to switch back to the day picker.
 
-The card-rendering logic in services.schedule_service and the keyboard
-in keyboards.schedule.day_view_keyboard are reused as-is by the booking
-flow once it's implemented — the booking/waitlist callbacks below are
-placeholders until then.
+Booking is handled separately under "✍️ Записатись".
 """
 
 from aiogram import F, Router
@@ -41,21 +36,11 @@ async def back_to_day_picker(callback: CallbackQuery) -> None:
 
 @router.callback_query(F.data.in_({"schedule:day:1", "schedule:day:2"}))
 async def show_day_schedule(callback: CallbackQuery, session: AsyncSession) -> None:
-    """Render the full schedule for the selected day, with booking buttons."""
+    """Render the read-only schedule for the selected day."""
     day = int(callback.data.rsplit(":", 1)[-1])
 
     activities = await get_activities_for_day(session, day)
     text = render_day_schedule(day, day_label(day), activities)
 
-    await callback.message.edit_text(text, reply_markup=day_view_keyboard(activities))
+    await callback.message.edit_text(text, reply_markup=day_view_keyboard())
     await callback.answer()
-
-
-@router.callback_query(F.data.startswith("book:") | F.data.startswith("waitlist:"))
-async def booking_coming_soon(callback: CallbackQuery) -> None:
-    """
-    Placeholder until the booking flow (conflict checks, capacity locks,
-    waitlist) is implemented. Reachable from the per-activity buttons in
-    day_view_keyboard.
-    """
-    await callback.answer(t.BOOKING_COMING_SOON, show_alert=True)

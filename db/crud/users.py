@@ -40,3 +40,23 @@ async def create_user(
 
     await session.refresh(user)
     return user
+
+
+async def update_user_field(session: AsyncSession, tg_id: int, field: str, value: str) -> User | None:
+    """
+    Update a single profile field (full_name / phone / email) for a user.
+
+    Returns the updated user, or None if no profile exists. `field` must
+    be one of the allowed column names to avoid arbitrary attribute writes.
+    """
+    if field not in {"full_name", "phone", "email"}:
+        raise ValueError(f"Field not allowed for update: {field}")
+
+    user = await get_user_by_tg_id(session, tg_id)
+    if user is None:
+        return None
+
+    setattr(user, field, value)
+    await session.commit()
+    await session.refresh(user)
+    return user

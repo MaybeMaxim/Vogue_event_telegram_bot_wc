@@ -1,13 +1,14 @@
 """
-All user-facing strings for the schedule view (📅 Розклад).
+All user-facing strings for the read-only schedule view (📅 Розклад).
 
-As with texts/registration.py, expect this wording to change --
-handlers must reference these constants, not inline strings.
+This view is now PURELY read-only — booking happens under
+"✍️ Записатись" (see texts/booking.py). The schedule just shows a
+clean, well-spaced overview of both days with availability dots.
 
 NOTE on formatting: the bot runs with ParseMode.HTML (see bot.py), so
-these templates use <b>, <a href="...">, etc. Any *dynamic* values
-inserted into these templates (activity titles, speaker names) MUST be
-passed through html.escape() first — see services.schedule_service.
+these templates use <b>, <a href="...">, etc. Any dynamic values
+(activity titles, speaker names) MUST be passed through html.escape()
+first — see services.schedule_service.
 """
 
 SCHEDULE_INTRO = "Оберіть день, щоб переглянути розклад 👇"
@@ -16,37 +17,27 @@ DAY_BUTTON = "День {day} ({date})"
 
 DAY_HEADER = "📅 <b>Розклад — День {day} ({date})</b>"
 
+# Time-slot header. The exclusive hint is appended when the activities
+# in the slot are mutually exclusive alternatives.
 TIME_SLOT_HEADER = "🕒 <b>{time_range}</b>"
+TIME_SLOT_EXCLUSIVE_HINT = "  <i>· оберіть один варіант</i>"
 
-# Appended to TIME_SLOT_HEADER when the activities in this slot are
-# mutually exclusive alternatives (only one can be booked).
-TIME_SLOT_EXCLUSIVE_HINT = " · оберіть один варіант"
+# One activity line: status dot + title + seat count, all on one line
+# for a tight, scannable layout. {dot} is the 🟢/🟡/🔴 emoji.
+ACTIVITY_LINE = "{dot} <b>{title}</b> — {seats}"
 
-# One activity card within a time slot. {title} is bold; {availability}
-# is the 🟢/🟡/🔴 + seat-count line from utils.status_emoji.
-ACTIVITY_CARD = "  <b>{title}</b>\n    {availability}"
-
-# Optional speaker line, appended to a card if present. If the speaker
-# has a social link, {speaker_name} is wrapped in <a href="..."> by
-# services.schedule_service; otherwise it's plain text.
+# Speaker sub-line under an activity (only when a speaker is set).
 ACTIVITY_SPEAKER_LINE = "    👤 {speaker_name}"
 
-# Summary line for the Barinova consultation block (collapsed, not
-# expanded into 12 individual cards in the full-schedule view).
-CONSULTATION_SUMMARY = (
-    "🕒 <b>{time_range}</b>\n"
-    "  <b>{title}</b>\n"
-    "    {availability_summary}\n"
-    "    Запис на конкретний слот — у розділі «🩺 Консультація хірурга»"
-)
+# Description sub-line under an activity (only when a description is set).
+ACTIVITY_DESC_LINE = "    <i>{description}</i>"
+
+# Collapsed summary for the Barinova consultation block.
+CONSULTATION_LINE = "{dot} <b>{title}</b> — {seats}"
 
 NO_ACTIVITIES_FOR_DAY = "На цей день активностей не знайдено."
 
 BACK_TO_DAYS_BUTTON = "⬅️ Обрати інший день"
 
-# Per-activity inline booking buttons.
-BOOK_BUTTON = "✍️ Записатись"
-WAITLIST_BUTTON = "🔔 У лист очікування"
-
-# Shown when the booking flow isn't wired up yet (placeholder for this step).
-BOOKING_COMING_SOON = "🚧 Запис на цю активність буде доступний найближчим часом."
+# Footer hint pointing users to where booking actually happens.
+BOOK_HINT = "\n💡 Щоб записатись, відкрийте «✍️ Записатись» у меню."

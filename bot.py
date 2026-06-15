@@ -10,7 +10,11 @@ from config import settings
 from db.base import async_session, init_db
 from handlers.registration import router as registration_router
 from handlers.schedule import router as schedule_router
+from handlers.booking import router as booking_router
+from handlers.profile import router as profile_router
+from handlers.support import router as support_router
 from middlewares.registration_check import RegistrationRequiredMiddleware
+from middlewares.menu_state_reset import MenuStateResetMiddleware
 
 
 class DbSessionMiddleware:
@@ -33,8 +37,15 @@ async def main() -> None:
     dp.update.middleware(DbSessionMiddleware())
     dp.update.middleware(RegistrationRequiredMiddleware())
 
+    # Inner middleware on the message observer: FSM `state` is guaranteed
+    # to be in `data` here, which it is not at the raw-update level.
+    dp.message.middleware(MenuStateResetMiddleware())
+
     dp.include_router(registration_router)
     dp.include_router(schedule_router)
+    dp.include_router(booking_router)
+    dp.include_router(profile_router)
+    dp.include_router(support_router)
 
     await dp.start_polling(bot)
 
