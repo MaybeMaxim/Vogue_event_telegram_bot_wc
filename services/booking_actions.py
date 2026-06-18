@@ -21,7 +21,19 @@ from db.crud import bookings as bookings_crud
 from db.crud import waitlist as waitlist_crud
 from db.crud.activities import get_activity_by_id
 from db.models import Activity, Booking, Waitlist
+from db.crud.bookings import find_consultation_booking
+from db.crud.waitlist import find_consultation_waitlist_entry
 from scheduler.locks import activity_lock
+
+
+def _mark_sheets_dirty() -> None:
+    """Flag the Google Sheets sync to refresh (no-op if Sheets disabled)."""
+    try:
+        from services.sheets_service import mark_dirty
+
+        mark_dirty()
+    except Exception:
+        pass
 
 
 # --- Result types ----------------------------------------------------------
@@ -34,12 +46,19 @@ class BookingResult:
     booking: Booking | None = None
     conflict_booking: Booking | None = None
     conflict_activity: Activity | None = None
+    # Set when a consultation-slot waitlist entry was auto-dropped on booking.
+    dropped_waitlist_entry: Waitlist | None = None
+    dropped_waitlist_activity: Activity | None = None
+    # Set when a conflicting consultation booking was auto-cancelled on waitlist confirm.
+    swapped_from_booking: Booking | None = None
+    swapped_from_activity: Activity | None = None
 
 
 OUTCOME_CONFIRMED = "confirmed"
 OUTCOME_ALREADY_BOOKED = "already_booked"
-OUTCOME_CONFLICT = "conflict"          # overlapping/exclusive booking exists
-OUTCOME_FULL = "full"                  # no seats; user may join the waitlist
+OUTCOME_CONFLICT = "conflict"                    # overlapping/exclusive booking exists
+OUTCOME_CONSULTATION_CONFLICT = "consultation_conflict"  # already booked a consultation slot
+OUTCOME_FULL = "full"                            # no seats; user may join the waitlist
 OUTCOME_NOT_FOUND = "not_found"
 
 
@@ -47,13 +66,18 @@ OUTCOME_NOT_FOUND = "not_found"
 class WaitlistJoinResult:
     status: str  # WL_* constants
     position: int | None = None
+    # Set when the user is already booked for a conflicting activity;
+    # shown as a warning so they know confirming the offer will cancel it.
+    conflict_booking: Booking | None = None
+    conflict_activity: Activity | None = None
 
 
 WL_JOINED = "joined"
 WL_ALREADY_WAITING = "already_waiting"
 WL_ALREADY_BOOKED = "already_booked"
-WL_SEAT_AVAILABLE = "seat_available"   # not full anymore -> should just book
+WL_SEAT_AVAILABLE = "seat_available"       # not full anymore -> should just book
 WL_NOT_FOUND = "not_found"
+WL_CONSULTATION_CONFLICT = "consultation_conflict"  # already waitlisted/booked for another consult slot
 
 
 # --- Create booking ---------------------------------------------------------
@@ -87,14 +111,48 @@ async def try_create_booking(session: AsyncSession, user_id: int, activity_id: i
             conflict_activity=conflict_activity,
         )
 
+    # Consultation slots are exclusive: one per user across all slots.
+    if activity.is_consultation_slot:
+        consult_conflict = await find_consultation_booking(
+            session, user_id, exclude_activity_id=activity_id
+        )
+        if consult_conflict is not None:
+            consult_activity = await get_activity_by_id(session, consult_conflict.activity_id)
+            return BookingResult(
+                status=OUTCOME_CONSULTATION_CONFLICT,
+                conflict_booking=consult_conflict,
+                conflict_activity=consult_activity,
+            )
+
+    # Detect any consultation waitlist entry to drop, but don't expire it yet —
+    # we wait until we know the booking will actually succeed (inside the lock).
+    dropped_wl = None
+    dropped_wl_activity = None
+    if activity.is_consultation_slot:
+        dropped_wl = await find_consultation_waitlist_entry(
+            session, user_id, exclude_activity_id=activity_id
+        )
+        if dropped_wl is not None:
+            dropped_wl_activity = await get_activity_by_id(session, dropped_wl.activity_id)
+
     async with activity_lock(activity_id):
         occupied = await bookings_crud.count_occupied_seats(session, activity_id)
         if occupied >= activity.capacity:
             return BookingResult(status=OUTCOME_FULL)
 
+        # Seat is confirmed available — now safe to drop the other waitlist spot.
+        if dropped_wl is not None:
+            await waitlist_crud.mark_expired(session, dropped_wl)
+
         booking = await bookings_crud.create_booking(session, user_id, activity_id)
 
-    return BookingResult(status=OUTCOME_CONFIRMED, booking=booking)
+    _mark_sheets_dirty()
+    return BookingResult(
+        status=OUTCOME_CONFIRMED,
+        booking=booking,
+        dropped_waitlist_entry=dropped_wl,
+        dropped_waitlist_activity=dropped_wl_activity,
+    )
 
 
 # --- Cancel booking ---------------------------------------------------------
@@ -110,6 +168,7 @@ async def cancel_booking(session: AsyncSession, booking: Booking) -> Activity | 
     async with activity_lock(activity_id):
         await bookings_crud.cancel_booking(session, booking)
 
+    _mark_sheets_dirty()
     return await get_activity_by_id(session, activity_id)
 
 
@@ -132,6 +191,27 @@ async def try_join_waitlist(session: AsyncSession, user_id: int, activity_id: in
     if await waitlist_crud.get_waitlist_entry(session, user_id, activity_id) is not None:
         return WaitlistJoinResult(status=WL_ALREADY_WAITING)
 
+    # Consultation slots: block joining the waitlist if already waitlisted for a
+    # different consultation slot (can't queue for two at once). Being *booked*
+    # for another slot is allowed — the existing booking will be auto-cancelled
+    # when the offer is accepted.
+    if activity.is_consultation_slot:
+        if await find_consultation_waitlist_entry(session, user_id, exclude_activity_id=activity_id) is not None:
+            return WaitlistJoinResult(status=WL_CONSULTATION_CONFLICT)
+
+    # Detect any conflicting active booking (time overlap or consultation slot)
+    # so we can warn the user up front that it will be cancelled on offer accept.
+    conflict_bk = None
+    conflict_act = None
+    if activity.is_consultation_slot:
+        conflict_bk = await find_consultation_booking(session, user_id, exclude_activity_id=activity_id)
+    else:
+        conflict_bk = await bookings_crud.find_time_conflict(
+            session, user_id, activity.start_time, activity.end_time
+        )
+    if conflict_bk is not None:
+        conflict_act = await get_activity_by_id(session, conflict_bk.activity_id)
+
     async with activity_lock(activity_id):
         occupied = await bookings_crud.count_occupied_seats(session, activity_id)
         if occupied < activity.capacity:
@@ -140,7 +220,13 @@ async def try_join_waitlist(session: AsyncSession, user_id: int, activity_id: in
         entry = await waitlist_crud.add_to_waitlist(session, user_id, activity_id)
 
     position = await waitlist_crud.waitlist_position(session, entry)
-    return WaitlistJoinResult(status=WL_JOINED, position=position)
+    _mark_sheets_dirty()
+    return WaitlistJoinResult(
+        status=WL_JOINED,
+        position=position,
+        conflict_booking=conflict_bk,
+        conflict_activity=conflict_act,
+    )
 
 
 # --- Waitlist promotion (called after a seat frees up) ----------------------
@@ -186,6 +272,9 @@ async def confirm_waitlist_offer(session: AsyncSession, entry: Waitlist) -> Book
     if activity is None:
         return BookingResult(status=OUTCOME_NOT_FOUND)
 
+    swapped_booking = None
+    swapped_activity = None
+
     async with activity_lock(entry.activity_id):
         occupied = await bookings_crud.count_occupied_seats(session, entry.activity_id)
         if occupied >= activity.capacity:
@@ -193,7 +282,29 @@ async def confirm_waitlist_offer(session: AsyncSession, entry: Waitlist) -> Book
             # offer reserved intent, but stay safe).
             return BookingResult(status=OUTCOME_FULL)
 
+        # Auto-cancel any conflicting active booking so the user doesn't end up
+        # double-booked. For consultation slots check by slot type; for all other
+        # activities check by time overlap.
+        if activity.is_consultation_slot:
+            existing_conflict = await find_consultation_booking(
+                session, entry.user_id, exclude_activity_id=entry.activity_id
+            )
+        else:
+            existing_conflict = await bookings_crud.find_time_conflict(
+                session, entry.user_id, activity.start_time, activity.end_time
+            )
+        if existing_conflict is not None:
+            swapped_activity = await get_activity_by_id(session, existing_conflict.activity_id)
+            swapped_booking = existing_conflict
+            await bookings_crud.cancel_booking(session, existing_conflict)
+
         booking = await bookings_crud.create_booking(session, entry.user_id, entry.activity_id)
         await waitlist_crud.mark_confirmed(session, entry)
 
-    return BookingResult(status=OUTCOME_CONFIRMED, booking=booking)
+    _mark_sheets_dirty()
+    return BookingResult(
+        status=OUTCOME_CONFIRMED,
+        booking=booking,
+        swapped_from_booking=swapped_booking,
+        swapped_from_activity=swapped_activity,
+    )

@@ -16,3 +16,11 @@ BOOKING_LOCATION = "      📍 {location}"
 CANCEL_BUTTON = "❌ {time} {title}"
 CANCELLED_OK = "Запис на «{title}» скасовано."
 CANCEL_FAILED = "Не вдалося скасувати запис. Можливо, його вже скасовано."
+
+# Waitlist section
+WAITLIST_SECTION_HEADER = "🔔 <b>Черга очікування</b>"
+WAITLIST_ENTRY = "⏳ {time_range}  —  <b>{title}</b>  (позиція: {position})"
+WAITLIST_ENTRY_OFFERED = "🎉 {time_range}  —  <b>{title}</b>  (місце запропоновано!)"
+WAITLIST_LEAVE_BUTTON = "🔕 {time} {title}"
+WAITLIST_LEFT_OK = "Вас видалено з черги на «{title}»."
+WAITLIST_LEAVE_FAILED = "Не вдалося вийти з черги. Можливо, запис вже змінився."

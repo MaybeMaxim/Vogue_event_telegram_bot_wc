@@ -35,7 +35,7 @@ from db.crud.activities import get_activity_by_id
 from keyboards.booking import attendance_keyboard, waitlist_offer_keyboard
 from services import booking_actions as actions
 from texts import booking as t
-from utils.time_utils import format_time_range
+from utils.time_utils import display_title, format_time_range
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +77,14 @@ async def tick(bot: Bot) -> None:
         await _process_no_shows(session, bot, now)
         await _process_waitlist_expiry(session, bot, now)
 
+    # Push any booking changes to Google Sheets (no-op if disabled / clean).
+    try:
+        from services.sheets_service import sync_if_dirty
+
+        await sync_if_dirty()
+    except Exception:
+        logger.exception("Google Sheets sync step failed")
+
 
 async def _process_reminders(session, bot: Bot, now: datetime) -> None:
     threshold = now + timedelta(minutes=settings.reminder_minutes)
@@ -90,7 +98,7 @@ async def _process_reminders(session, bot: Bot, now: datetime) -> None:
             bot,
             tg_id,
             t.REMINDER.format(
-                title=html.escape(activity.title),
+                title=html.escape(display_title(activity)),
                 time_range=format_time_range(activity.start_time, activity.end_time),
                 location=html.escape(activity.location_text),
             ),
@@ -113,7 +121,7 @@ async def _process_confirmations(session, bot: Bot, now: datetime) -> None:
             bot,
             tg_id,
             t.CONFIRMATION_REQUEST.format(
-                title=html.escape(activity.title),
+                title=html.escape(display_title(activity)),
                 time_range=format_time_range(activity.start_time, activity.end_time),
                 location=html.escape(activity.location_text),
             ),
@@ -130,7 +138,7 @@ async def _process_no_shows(session, bot: Bot, now: datetime) -> None:
 
         tg_id = await _user_tg_id(session, booking.user_id)
         if tg_id is not None:
-            await _send(bot, tg_id, t.NO_SHOW_RELEASED.format(title=html.escape(activity.title)))
+            await _send(bot, tg_id, t.NO_SHOW_RELEASED.format(title=html.escape(display_title(activity))))
 
         await _promote(session, bot, activity.id)
 
@@ -162,7 +170,7 @@ async def _promote(session, bot: Bot, activity_id: int) -> None:
         bot,
         tg_id,
         t.WAITLIST_OFFER.format(
-            title=html.escape(activity.title),
+            title=html.escape(display_title(activity)),
             time_range=format_time_range(activity.start_time, activity.end_time),
             minutes=settings.waitlist_confirm_minutes,
         ),

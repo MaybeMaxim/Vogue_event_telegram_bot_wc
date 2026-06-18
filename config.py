@@ -40,6 +40,18 @@ class Settings(BaseSettings):
     confirmation_minutes: int = 30
     auto_release_minutes: int = 5
 
+    # Google Sheets live sync (optional).
+    # gsheets_enabled: master switch; if False the bot skips all Sheets work.
+    # gsheets_credentials_file: path to the service-account JSON key.
+    # gsheets_spreadsheet_id: the target spreadsheet's id (from its URL). If
+    #   empty, the bot creates a new spreadsheet on first sync and logs the
+    #   id/URL so you can share it with the team.
+    # gsheets_sync_seconds: how often the periodic sync runs.
+    gsheets_enabled: bool = False
+    gsheets_credentials_file: str = "google_credentials.json"
+    gsheets_spreadsheet_id: str = ""
+    gsheets_sync_seconds: int = 60
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
     @property

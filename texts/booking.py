@@ -39,7 +39,7 @@ CONSULTATION_PICKER_HEADER = (
     "Оберіть вільний час для індивідуальної консультації (15 хв) 👇"
 )
 CONSULTATION_SLOT_FREE = "🟢 {time}"
-CONSULTATION_SLOT_TAKEN = "🔴 {time} (зайнято)"
+CONSULTATION_SLOT_TAKEN = "🔴 {time} — зайнято (черга очікування →)"
 CONSULTATION_NONE_FREE = (
     "🩺 <b>Консультації Анни Барінової</b>\n\n"
     "На жаль, усі слоти наразі зайняті. "
@@ -77,6 +77,28 @@ CONFLICT_FOUND = (
     "Не можна бути у двох місцях одночасно. "
     "Спершу скасуйте попередній запис, якщо хочете змінити вибір."
 )
+CONSULTATION_CONFLICT_FOUND = (
+    "⚠️ Ви вже записані на консультацію Анни Барінової:\n\n"
+    "🗓 <b>{conflict_title}</b>\n\n"
+    "Можна мати лише одну консультацію. "
+    "Скасуйте поточний запис, якщо хочете обрати інший час."
+)
+BOOKED_OK_WAITLIST_DROPPED = (
+    "✅ Готово! Вас записано:\n\n"
+    "🗓 <b>{title}</b>\n"
+    "🕒 {time_range}\n\n"
+    "ℹ️ Ваше місце в черзі очікування на «{dropped_title}» було автоматично скасовано, "
+    "оскільки можна мати лише одну консультацію."
+)
+WAITLIST_CONSULTATION_CONFLICT = (
+    "⚠️ Ви вже перебуваєте в черзі очікування на іншу консультацію Анни Барінової. "
+    "Можна чекати лише на одну консультацію одночасно."
+)
+WAITLIST_OFFER_CONFIRMED_SWAPPED = (
+    "✅ Чудово! Вас записано на «{title}».\n"
+    "🕒 {time_range}\n\n"
+    "Запис на «{swapped_title}» скасовано автоматично."
+)
 CONFLICT_CANCEL_BUTTON = "❌ Скасувати «{conflict_title}»"
 ACTIVITY_FULL_OFFER_WAITLIST = (
     "😔 На жаль, місць на «{title}» вже немає.\n\n"
@@ -101,6 +123,10 @@ WAITLIST_OFFER = (
     "🕒 {time_range}\n\n"
     "Підтвердьте, будь ласка, протягом {minutes} хв, інакше місце "
     "перейде наступному в черзі."
+)
+WAITLIST_OFFER_CONFLICT_WARNING = (
+    "\n\n⚠️ Якщо ви підтвердите, ваш поточний запис на «{conflict_title}» "
+    "(🕒 {conflict_time}) буде автоматично скасовано."
 )
 WAITLIST_OFFER_CONFIRM_BUTTON = "✅ Підтвердити запис"
 WAITLIST_OFFER_DECLINE_BUTTON = "❌ Відмовитись"
@@ -144,6 +170,12 @@ NO_SHOW_RELEASED = (
 
 BOOKING_ABORTED = "Скасовано."
 EDIT_DATA_PROMPT = "Оновіть дані в профілі, а потім поверніться до запису 🙂"
+CONFLICT_CANCELLED_TRY_AGAIN_BUTTON = "✍️ Записатись тепер"
 CONFLICT_CANCELLED = "Попередній запис скасовано. Тепер можете обрати інший варіант 🙂"
+WAITLIST_JOINED_WITH_CONFLICT = (
+    "🔔 Вас додано до листа очікування на «{title}».\n"
+    "Ваша позиція в черзі: <b>{position}</b>.\n\n"
+    "⚠️ Якщо місце звільниться, ваш поточний запис на «{conflict_title}» буде автоматично скасовано."
+)
 
 NO_ACTIVITIES_FOR_DAY = "На цей день активностей не знайдено."

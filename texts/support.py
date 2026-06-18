@@ -7,39 +7,32 @@ SUPPORT_INTRO = (
     "Чим можемо допомогти? Оберіть один із варіантів 👇"
 )
 
-CONTACT_ORGANIZER_BUTTON = "📞 Зв'язатися з організатором"
-ASK_QUESTION_BUTTON = "❓ Поставити запитання"
+CONTACT_ORGANIZER_BUTTON = "📞 Написати організаторам"
 REPORT_BUG_BUTTON = "🐞 Повідомити про помилку"
+BACK_BUTTON = "⬅️ Назад"
 CLOSE_BUTTON = "✅ Закрити"
-
 CANCEL_BUTTON = "❌ Скасувати"
 
-# Contact organizer
+# Contact organizer screen
 CONTACT_ORGANIZER = (
-    "📞 <b>Зв'язок з організатором</b>\n\n"
-    "Напишіть нам напряму: {contact}\n\n"
+    "📞 <b>Написати організаторам</b>\n\n"
+    "Звʼяжіться з нами напряму:\n"
+    "{contact}\n\n"
     "Ми відповімо якнайшвидше 🙂"
 )
 
-# Ask a question
-ASK_QUESTION_PROMPT = (
-    "❓ Напишіть ваше запитання одним повідомленням — "
-    "ми передамо його команді заходу."
-)
-QUESTION_SENT = "✅ Дякуємо! Ваше запитання надіслано команді. Ми зв'яжемось із вами за потреби."
-
-# Report a bug
+# Report a bug/mistake flow
 REPORT_BUG_PROMPT = (
-    "🐞 Опишіть, будь ласка, що пішло не так — "
-    "що ви робили й що сталося. Це допоможе нам швидко все виправити."
+    "🐞 <b>Повідомлення про помилку</b>\n\n"
+    "Опишіть, будь ласка, що пішло не так — що ви робили і що сталося. "
+    "Це допоможе нам швидко все виправити."
 )
-BUG_SENT = "✅ Дякуємо за повідомлення! Ми розберемось із цим якнайшвидше."
+BUG_SENT = "✅ Дякуємо! Ми отримали ваше повідомлення і розберемось якнайшвидше."
 
-# Shown if there's nowhere to route the submission (misconfiguration).
+# Shown if delivery failed (misconfiguration).
 SUBMISSION_FAILED = "⚠️ Не вдалося надіслати повідомлення. Спробуйте, будь ласка, пізніше."
 
 CANCELLED = "Скасовано."
 
-# Forwarded-to-support formatting (sent to the support chat, not the user).
-FWD_QUESTION = "❓ <b>Нове запитання</b>\nВід: {user} (id <code>{tg_id}</code>)\n\n{text}"
+# Forwarded to the support chat (not shown to the user).
 FWD_BUG = "🐞 <b>Повідомлення про помилку</b>\nВід: {user} (id <code>{tg_id}</code>)\n\n{text}"

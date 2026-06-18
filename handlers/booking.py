@@ -41,6 +41,7 @@ from db.models import Waitlist
 from keyboards.booking import (
     activity_picker_keyboard,
     booked_ok_keyboard,
+    conflict_cancelled_keyboard,
     confirm_booking_keyboard,
     conflict_keyboard,
     consultation_picker_keyboard,
@@ -54,7 +55,7 @@ from keyboards.main_menu import MENU_BOOK
 from services import booking_actions as actions
 from services.booking_service import Slot, group_into_slots, render_activity_picker, render_slot_picker
 from texts import booking as t
-from utils.time_utils import format_time_range
+from utils.time_utils import display_title, format_time_range
 
 router = Router(name="booking")
 logger = logging.getLogger(__name__)
@@ -148,7 +149,7 @@ async def show_confirm_card(callback: CallbackQuery, session: AsyncSession) -> N
         return
 
     text = t.CONFIRM_BOOKING.format(
-        title=html.escape(activity.title),
+        title=html.escape(display_title(activity)),
         time_range=format_time_range(activity.start_time, activity.end_time),
         full_name=html.escape(user.full_name),
         phone=html.escape(user.phone),
@@ -204,30 +205,55 @@ async def confirm_booking(callback: CallbackQuery, session: AsyncSession) -> Non
     back_cb = _back_cb(activity) if activity else "bookdays"
 
     if result.status == actions.OUTCOME_CONFIRMED:
-        await callback.message.edit_text(
-            t.BOOKED_OK.format(
-                title=html.escape(activity.title),
-                time_range=format_time_range(activity.start_time, activity.end_time),
-            ),
-            reply_markup=booked_ok_keyboard(activity.day, f"bookday:{activity.day}"),
-        )
+        if result.dropped_waitlist_entry is not None:
+            dropped_act = result.dropped_waitlist_activity
+            await callback.message.edit_text(
+                t.BOOKED_OK_WAITLIST_DROPPED.format(
+                    title=html.escape(display_title(activity)),
+                    time_range=format_time_range(activity.start_time, activity.end_time),
+                    dropped_title=html.escape(display_title(dropped_act)) if dropped_act else "?",
+                ),
+                reply_markup=booked_ok_keyboard(activity.day, f"bookday:{activity.day}"),
+            )
+        else:
+            await callback.message.edit_text(
+                t.BOOKED_OK.format(
+                    title=html.escape(display_title(activity)),
+                    time_range=format_time_range(activity.start_time, activity.end_time),
+                ),
+                reply_markup=booked_ok_keyboard(activity.day, f"bookday:{activity.day}"),
+            )
     elif result.status == actions.OUTCOME_ALREADY_BOOKED:
         await callback.message.edit_text(
-            t.ALREADY_BOOKED.format(title=html.escape(activity.title)),
+            t.ALREADY_BOOKED.format(title=html.escape(display_title(activity))),
             reply_markup=booked_ok_keyboard(activity.day, f"bookday:{activity.day}"),
         )
     elif result.status == actions.OUTCOME_CONFLICT:
         ca = result.conflict_activity
-        await callback.message.edit_text(
-            t.CONFLICT_FOUND.format(
-                conflict_title=html.escape(ca.title),
-                conflict_time=format_time_range(ca.start_time, ca.end_time),
-            ),
-            reply_markup=conflict_keyboard(result.conflict_booking.id, ca.title, back_cb),
-        )
+        if ca is None:
+            await callback.message.edit_text(t.BOOKING_NOT_FOUND)
+        else:
+            await callback.message.edit_text(
+                t.CONFLICT_FOUND.format(
+                    conflict_title=html.escape(display_title(ca)),
+                    conflict_time=format_time_range(ca.start_time, ca.end_time),
+                ),
+                reply_markup=conflict_keyboard(result.conflict_booking.id, display_title(ca), back_cb, activity_id),
+            )
+    elif result.status == actions.OUTCOME_CONSULTATION_CONFLICT:
+        ca = result.conflict_activity
+        if ca is None:
+            await callback.message.edit_text(t.BOOKING_NOT_FOUND)
+        else:
+            await callback.message.edit_text(
+                t.CONSULTATION_CONFLICT_FOUND.format(
+                    conflict_title=html.escape(display_title(ca)),
+                ),
+                reply_markup=conflict_keyboard(result.conflict_booking.id, display_title(ca), back_cb, activity_id),
+            )
     elif result.status == actions.OUTCOME_FULL:
         await callback.message.edit_text(
-            t.ACTIVITY_FULL_OFFER_WAITLIST.format(title=html.escape(activity.title)),
+            t.ACTIVITY_FULL_OFFER_WAITLIST.format(title=html.escape(display_title(activity))),
             reply_markup=full_offer_waitlist_keyboard(activity_id, back_cb),
         )
     else:
@@ -239,14 +265,24 @@ async def confirm_booking(callback: CallbackQuery, session: AsyncSession) -> Non
 @router.callback_query(F.data.startswith("bookcancel:"))
 async def cancel_conflicting(callback: CallbackQuery, session: AsyncSession, bot: Bot) -> None:
     """Cancel a conflicting booking the user chose to drop, then promote any waitlist."""
-    booking_id = int(callback.data.split(":")[1])
+    parts = callback.data.split(":")
+    booking_id = int(parts[1])
+    target_activity_id = int(parts[2]) if len(parts) > 2 else None
+
     booking = await get_booking_by_id(session, booking_id)
     if booking is None:
         await callback.answer(t.BOOKING_NOT_FOUND, show_alert=True)
         return
 
     activity = await actions.cancel_booking(session, booking)
-    await callback.message.edit_text(t.CONFLICT_CANCELLED)
+
+    if target_activity_id is not None:
+        await callback.message.edit_text(
+            t.CONFLICT_CANCELLED,
+            reply_markup=conflict_cancelled_keyboard(target_activity_id),
+        )
+    else:
+        await callback.message.edit_text(t.CONFLICT_CANCELLED)
     await callback.answer()
 
     if activity is not None:
@@ -267,7 +303,7 @@ async def offer_waitlist(callback: CallbackQuery, session: AsyncSession) -> None
         return
 
     await callback.message.edit_text(
-        t.ACTIVITY_FULL_OFFER_WAITLIST.format(title=html.escape(activity.title)),
+        t.ACTIVITY_FULL_OFFER_WAITLIST.format(title=html.escape(display_title(activity))),
         reply_markup=full_offer_waitlist_keyboard(activity_id, _back_cb(activity)),
     )
     await callback.answer()
@@ -283,20 +319,32 @@ async def join_waitlist(callback: CallbackQuery, session: AsyncSession) -> None:
         return
 
     result = await actions.try_join_waitlist(session, user.id, activity_id)
-    title = html.escape(activity.title)
+    title = html.escape(display_title(activity))
     back_kb = booked_ok_keyboard(activity.day, f"bookday:{activity.day}")
 
     if result.status == actions.WL_JOINED:
-        await callback.message.edit_text(
-            t.WAITLIST_JOINED.format(title=title, position=result.position),
-            reply_markup=back_kb,
-        )
+        if result.conflict_activity is not None:
+            await callback.message.edit_text(
+                t.WAITLIST_JOINED_WITH_CONFLICT.format(
+                    title=title,
+                    position=result.position,
+                    conflict_title=html.escape(display_title(result.conflict_activity)),
+                ),
+                reply_markup=back_kb,
+            )
+        else:
+            await callback.message.edit_text(
+                t.WAITLIST_JOINED.format(title=title, position=result.position),
+                reply_markup=back_kb,
+            )
     elif result.status == actions.WL_ALREADY_WAITING:
         await callback.message.edit_text(t.WAITLIST_ALREADY.format(title=title), reply_markup=back_kb)
     elif result.status == actions.WL_ALREADY_BOOKED:
         await callback.message.edit_text(t.ALREADY_BOOKED.format(title=title), reply_markup=back_kb)
     elif result.status == actions.WL_SEAT_AVAILABLE:
         await callback.message.edit_text(t.WAITLIST_SEAT_AVAILABLE, reply_markup=back_kb)
+    elif result.status == actions.WL_CONSULTATION_CONFLICT:
+        await callback.message.edit_text(t.WAITLIST_CONSULTATION_CONFLICT, reply_markup=back_kb)
     else:
         await callback.message.edit_text(t.BOOKING_NOT_FOUND)
 
@@ -320,9 +368,22 @@ async def waitlist_confirm(callback: CallbackQuery, session: AsyncSession) -> No
     result = await actions.confirm_waitlist_offer(session, entry)
 
     if result.status == actions.OUTCOME_CONFIRMED:
-        await callback.message.edit_text(
-            t.WAITLIST_OFFER_CONFIRMED.format(title=html.escape(activity.title))
-        )
+        if result.swapped_from_activity is not None:
+            await callback.message.edit_text(
+                t.WAITLIST_OFFER_CONFIRMED_SWAPPED.format(
+                    title=html.escape(display_title(activity)),
+                    time_range=format_time_range(activity.start_time, activity.end_time),
+                    swapped_title=html.escape(display_title(result.swapped_from_activity)),
+                )
+            )
+            # The auto-cancelled booking freed a seat on the other activity —
+            # promote its waitlist so that seat doesn't go to waste.
+            if result.swapped_from_booking is not None:
+                await _promote_waitlist(session, bot, result.swapped_from_booking.activity_id)
+        else:
+            await callback.message.edit_text(
+                t.WAITLIST_OFFER_CONFIRMED.format(title=html.escape(display_title(activity)))
+            )
     else:
         await callback.message.edit_text(t.WAITLIST_OFFER_TAKEN)
     await callback.answer()
@@ -414,7 +475,11 @@ async def _get_offered_entry(session: AsyncSession, entry_id: int) -> Waitlist |
 async def _promote_waitlist(session: AsyncSession, bot: Bot, activity_id: int) -> None:
     """
     Offer a just-freed seat to the next waiting user (if any) and notify them.
+    If they already hold a conflicting booking the offer message warns them
+    upfront that accepting will cancel it.
     """
+    from db.crud.bookings import find_consultation_booking, find_time_conflict
+
     entry = await actions.offer_next_in_waitlist(session, activity_id)
     if entry is None:
         return
@@ -424,14 +489,30 @@ async def _promote_waitlist(session: AsyncSession, bot: Bot, activity_id: int) -
     if activity is None or user is None:
         return
 
+    # Check whether the user currently has a conflicting booking so we can
+    # warn them in the offer message before they confirm.
+    if activity.is_consultation_slot:
+        conflict_bk = await find_consultation_booking(session, entry.user_id, exclude_activity_id=activity_id)
+    else:
+        conflict_bk = await find_time_conflict(session, entry.user_id, activity.start_time, activity.end_time)
+
+    conflict_warning = ""
+    if conflict_bk is not None:
+        conflict_act = await get_activity_by_id(session, conflict_bk.activity_id)
+        if conflict_act is not None:
+            conflict_warning = t.WAITLIST_OFFER_CONFLICT_WARNING.format(
+                conflict_title=html.escape(display_title(conflict_act)),
+                conflict_time=format_time_range(conflict_act.start_time, conflict_act.end_time),
+            )
+
     try:
         await bot.send_message(
             user.tg_id,
             t.WAITLIST_OFFER.format(
-                title=html.escape(activity.title),
+                title=html.escape(display_title(activity)),
                 time_range=format_time_range(activity.start_time, activity.end_time),
                 minutes=settings.waitlist_confirm_minutes,
-            ),
+            ) + conflict_warning,
             reply_markup=waitlist_offer_keyboard(entry.id),
         )
     except Exception:

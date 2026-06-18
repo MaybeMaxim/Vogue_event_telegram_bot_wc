@@ -129,14 +129,21 @@ def confirm_booking_keyboard(activity_id: int, back_cb: str) -> InlineKeyboardMa
     )
 
 
-def conflict_keyboard(conflict_booking_id: int, conflict_title: str, back_cb: str) -> InlineKeyboardMarkup:
+def conflict_keyboard(
+    conflict_booking_id: int, conflict_title: str, back_cb: str, target_activity_id: int | None = None
+) -> InlineKeyboardMarkup:
     """Offer to cancel the conflicting booking, or go back."""
+    cancel_cb = (
+        f"bookcancel:{conflict_booking_id}:{target_activity_id}"
+        if target_activity_id is not None
+        else f"bookcancel:{conflict_booking_id}"
+    )
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 InlineKeyboardButton(
                     text=t.CONFLICT_CANCEL_BUTTON.format(conflict_title=_truncate(conflict_title, 20)),
-                    callback_data=f"bookcancel:{conflict_booking_id}",
+                    callback_data=cancel_cb,
                 )
             ],
             [InlineKeyboardButton(text=t.CONFIRM_CANCEL_BUTTON, callback_data=back_cb)],
@@ -150,6 +157,16 @@ def full_offer_waitlist_keyboard(activity_id: int, back_cb: str) -> InlineKeyboa
         inline_keyboard=[
             [InlineKeyboardButton(text=t.JOIN_WAITLIST_BUTTON, callback_data=f"bookwaitjoin:{activity_id}")],
             [InlineKeyboardButton(text=t.CONFIRM_CANCEL_BUTTON, callback_data=back_cb)],
+        ]
+    )
+
+
+def conflict_cancelled_keyboard(target_activity_id: int) -> InlineKeyboardMarkup:
+    """After cancelling a conflicting booking: offer to proceed with the originally wanted activity."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=t.CONFLICT_CANCELLED_TRY_AGAIN_BUTTON, callback_data=f"bookact:{target_activity_id}")],
+            [InlineKeyboardButton(text=t.BACK_TO_DAYS_BUTTON, callback_data="bookdays")],
         ]
     )
 

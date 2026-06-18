@@ -87,6 +87,24 @@ async def get_booking_by_id(session: AsyncSession, booking_id: int) -> Booking |
     return (await session.execute(select(Booking).where(Booking.id == booking_id))).scalar_one_or_none()
 
 
+async def find_consultation_booking(
+    session: AsyncSession, user_id: int, exclude_activity_id: int | None = None
+) -> Booking | None:
+    """Return any active booking for a consultation slot, optionally excluding one activity id."""
+    stmt = (
+        select(Booking)
+        .join(Activity, Booking.activity_id == Activity.id)
+        .where(
+            Booking.user_id == user_id,
+            Booking.status.in_(_ACTIVE_STATUSES),
+            Activity.is_consultation_slot.is_(True),
+        )
+    )
+    if exclude_activity_id is not None:
+        stmt = stmt.where(Booking.activity_id != exclude_activity_id)
+    return (await session.execute(stmt.limit(1))).scalar_one_or_none()
+
+
 async def list_user_bookings(session: AsyncSession, user_id: int) -> list[tuple[Booking, Activity]]:
     """
     Return the user's active bookings paired with their activities,

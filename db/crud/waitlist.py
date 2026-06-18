@@ -17,6 +17,11 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+async def get_waitlist_entry_by_id(session: AsyncSession, entry_id: int) -> Waitlist | None:
+    """Fetch a waitlist entry by primary key."""
+    return (await session.execute(select(Waitlist).where(Waitlist.id == entry_id))).scalar_one_or_none()
+
+
 async def get_waitlist_entry(session: AsyncSession, user_id: int, activity_id: int) -> Waitlist | None:
     """Return the user's non-terminal waitlist entry for an activity, if any."""
     stmt = select(Waitlist).where(
@@ -81,6 +86,44 @@ async def remove_from_waitlist(session: AsyncSession, entry: Waitlist) -> None:
     """Mark a waitlist entry EXPIRED to remove it from active consideration."""
     entry.status = WaitlistStatus.EXPIRED
     await session.commit()
+
+
+async def list_user_waitlist_entries(
+    session: AsyncSession, user_id: int
+) -> list[tuple["Waitlist", "Activity"]]:
+    """Return the user's active (WAITING/OFFERED) waitlist entries with their activities."""
+    from db.models import Activity
+
+    stmt = (
+        select(Waitlist, Activity)
+        .join(Activity, Waitlist.activity_id == Activity.id)
+        .where(
+            Waitlist.user_id == user_id,
+            Waitlist.status.in_((WaitlistStatus.WAITING, WaitlistStatus.OFFERED)),
+        )
+        .order_by(Activity.start_time, Activity.id)
+    )
+    return [(w, a) for w, a in (await session.execute(stmt)).all()]
+
+
+async def find_consultation_waitlist_entry(
+    session: AsyncSession, user_id: int, exclude_activity_id: int | None = None
+) -> Waitlist | None:
+    """Return any active (WAITING/OFFERED) waitlist entry for a consultation slot."""
+    from db.models import Activity
+
+    stmt = (
+        select(Waitlist)
+        .join(Activity, Waitlist.activity_id == Activity.id)
+        .where(
+            Waitlist.user_id == user_id,
+            Waitlist.status.in_((WaitlistStatus.WAITING, WaitlistStatus.OFFERED)),
+            Activity.is_consultation_slot.is_(True),
+        )
+    )
+    if exclude_activity_id is not None:
+        stmt = stmt.where(Waitlist.activity_id != exclude_activity_id)
+    return (await session.execute(stmt.limit(1))).scalar_one_or_none()
 
 
 async def expired_offers(session: AsyncSession, now: datetime) -> list[Waitlist]:

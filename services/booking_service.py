@@ -25,7 +25,7 @@ from datetime import datetime
 from db.models import Activity
 from texts import booking as t
 from utils.status_emoji import seats_free, seats_text, status_emoji
-from utils.time_utils import format_time_range
+from utils.time_utils import display_title, format_time_range
 
 
 @dataclass
@@ -125,7 +125,7 @@ def render_activity_picker(slot: Slot) -> str:
         lines.append(
             t.ACTIVITY_PICKER_LINE.format(
                 dot=status_emoji(activity.capacity, booked),
-                title=html.escape(activity.title),
+                title=html.escape(display_title(activity)),
                 seats=seats_text(activity.capacity, booked),
             )
         )

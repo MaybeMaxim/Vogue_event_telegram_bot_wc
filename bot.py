@@ -14,6 +14,7 @@ from handlers.booking import router as booking_router
 from handlers.my_bookings import router as my_bookings_router
 from handlers.profile import router as profile_router
 from handlers.support import router as support_router
+from handlers.admin import router as admin_router
 from middlewares.registration_check import RegistrationRequiredMiddleware
 from middlewares.menu_state_reset import MenuStateResetMiddleware
 from scheduler.ticker import start_ticker
@@ -47,6 +48,7 @@ async def main() -> None:
     # to be in `data` here, which it is not at the raw-update level.
     dp.message.middleware(MenuStateResetMiddleware())
 
+    dp.include_router(admin_router)
     dp.include_router(registration_router)
     dp.include_router(schedule_router)
     dp.include_router(booking_router)

@@ -24,12 +24,12 @@ from states.registration import Registration
 from texts import registration as t
 
 # Commands that must always pass through, even for unregistered users.
-_ALWAYS_ALLOWED_COMMANDS = {"/start"}
+_ALWAYS_ALLOWED_COMMANDS = {"/start", "/admin"}
 
 # Callback-data prefixes that belong to the registration flow itself and
 # must always reach their handler, even before any FSM state is set
 # (e.g. the very first "Почати реєстрацію" tap from the welcome screen).
-_ALWAYS_ALLOWED_CALLBACK_PREFIXES = ("reg:",)
+_ALWAYS_ALLOWED_CALLBACK_PREFIXES = ("reg:", "adm:")
 
 
 class RegistrationRequiredMiddleware(BaseMiddleware):
