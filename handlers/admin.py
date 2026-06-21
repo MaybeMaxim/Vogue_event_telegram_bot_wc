@@ -15,7 +15,7 @@ store the picked activity in FSM data.
 """
 
 import html
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from aiogram import Bot, F, Router
@@ -54,6 +54,26 @@ router.callback_query.filter(IsAdmin())
 # ---------------------------------------------------------------------------
 # Entry + menu
 # ---------------------------------------------------------------------------
+
+@router.message(Command("time"))
+async def show_time(message: Message) -> None:
+    from zoneinfo import ZoneInfo
+    from config import settings
+    real_utc = datetime.now(timezone.utc)
+    bot_utc = real_utc + timedelta(minutes=settings.clock_offset_minutes)
+    bot_local = bot_utc.astimezone(ZoneInfo(settings.event_timezone))
+    offset_note = (
+        f"  (зміщення: <code>{settings.clock_offset_minutes:+d} хв</code>)"
+        if settings.clock_offset_minutes != 0 else ""
+    )
+    await message.answer(
+        f"🕐 <b>Час бота</b>\n\n"
+        f"UTC:  <code>{bot_utc.strftime('%Y-%m-%d %H:%M:%S')}</code>{offset_note}\n"
+        f"{settings.event_timezone}:  <code>{bot_local.strftime('%Y-%m-%d %H:%M:%S')}</code>\n\n"
+        f"🌍 <b>Реальний час</b>\n"
+        f"UTC:  <code>{real_utc.strftime('%Y-%m-%d %H:%M:%S')}</code>"
+    )
+
 
 @router.message(Command("admin"))
 async def open_admin(message: Message, state: FSMContext) -> None:
