@@ -21,7 +21,7 @@ Booking actions live in services.booking_actions.
 
 import html
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 from aiogram import Bot, F, Router
 from aiogram.types import CallbackQuery, Message
@@ -214,8 +214,6 @@ async def edit_data_from_booking(callback: CallbackQuery, session: AsyncSession)
 @router.callback_query(F.data.startswith("bookconfirm:"))
 async def confirm_booking(callback: CallbackQuery, session: AsyncSession) -> None:
     """Run all checks and create the booking, rendering the appropriate outcome."""
-    from datetime import datetime, timezone
-
     activity_id = int(callback.data.split(":")[1])
     user = await get_user_by_tg_id(session, callback.from_user.id)
     if user is None:
@@ -370,7 +368,6 @@ async def offer_waitlist(callback: CallbackQuery, session: AsyncSession) -> None
 
 @router.callback_query(F.data.startswith("bookwaitjoin:"))
 async def join_waitlist(callback: CallbackQuery, session: AsyncSession) -> None:
-    from datetime import datetime, timezone
     activity_id = int(callback.data.split(":")[1])
     user = await get_user_by_tg_id(session, callback.from_user.id)
     activity = await get_activity_by_id(session, activity_id)
