@@ -10,8 +10,13 @@ BTN_WAITLISTS = "🕒 Листи очікування"
 BTN_SEARCH = "🔍 Пошук гостя"
 BTN_ADD = "➕ Додати гостя"
 BTN_EXPORT = "📊 Експорт"
+BTN_QUESTIONS = "🤍 Питання SEX WELLNESS TALK"
 BTN_BACK = "⬅️ Назад"
 BTN_CLOSE = "✅ Закрити"
+
+QUESTIONS_HEADER = "🤍 <b>Питання SEX WELLNESS TALK</b> — {count} шт.\n\n"
+QUESTIONS_EMPTY = "🤍 <b>Питання SEX WELLNESS TALK</b>\n\nЗапитань поки немає."
+QUESTION_ITEM = "{num}. {text}\n"
 
 # Activity picker (shared by participants / waitlists / manual add)
 PICK_ACTIVITY = "Оберіть активність 👇"

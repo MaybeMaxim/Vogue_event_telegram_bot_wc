@@ -516,6 +516,37 @@ async def _send_export(callback: CallbackQuery, path: Path, caption_template: st
 # Admin management
 # ---------------------------------------------------------------------------
 
+@router.callback_query(F.data == "adm:questions")
+async def show_questions(callback: CallbackQuery, session: AsyncSession) -> None:
+    from db.crud.support import all_questions
+    questions = await all_questions(session)
+    if not questions:
+        await callback.message.edit_text(t.QUESTIONS_EMPTY, reply_markup=back_to_menu_keyboard())
+        await callback.answer()
+        return
+
+    # Telegram message limit is 4096 chars — split into chunks if needed.
+    header = t.QUESTIONS_HEADER.format(count=len(questions))
+    lines = [t.QUESTION_ITEM.format(num=i + 1, text=html.escape(q.text)) for i, q in enumerate(questions)]
+    chunks = []
+    current = header
+    for line in lines:
+        if len(current) + len(line) > 3800:
+            chunks.append(current)
+            current = line
+        else:
+            current += line
+    chunks.append(current)
+
+    for i, chunk in enumerate(chunks):
+        kb = back_to_menu_keyboard() if i == len(chunks) - 1 else None
+        if i == 0:
+            await callback.message.edit_text(chunk, reply_markup=kb)
+        else:
+            await callback.message.answer(chunk, reply_markup=kb)
+    await callback.answer()
+
+
 @router.callback_query(F.data == "adm:admins")
 async def show_admins(callback: CallbackQuery, session: AsyncSession) -> None:
     db_admins = await list_admins(session)
