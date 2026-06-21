@@ -85,8 +85,11 @@ async def back_to_day_picker(callback: CallbackQuery) -> None:
 @router.callback_query(F.data.startswith("bookday:"))
 async def show_category_picker(callback: CallbackQuery, session: AsyncSession) -> None:
     day = int(callback.data.split(":")[1])
+    now_utc = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=settings.clock_offset_minutes)
 
     activities = await get_activities_for_day(session, day)
+    # Exclude slots that have already started — they are no longer bookable.
+    activities = [(a, b) for a, b in activities if a.start_time > now_utc]
     if not activities:
         await callback.message.edit_text(t.NO_ACTIVITIES_FOR_DAY, reply_markup=day_picker_keyboard())
         await callback.answer()
@@ -110,14 +113,17 @@ async def show_subslot_picker(callback: CallbackQuery, session: AsyncSession) ->
 
     # Find all activities for the day that share this category name.
     cat_name = _category_name(anchor.title)
+    now_utc = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=settings.clock_offset_minutes)
     all_day = await get_activities_for_day(session, day)
     cat_activities = [
         (a, b) for a, b in all_day
-        if not a.is_consultation_slot and _category_name(a.title) == cat_name
+        if not a.is_consultation_slot
+        and _category_name(a.title) == cat_name
+        and a.start_time > now_utc
     ]
 
     if not cat_activities:
-        await callback.answer(t.NO_ACTIVITIES_FOR_DAY, show_alert=True)
+        await callback.answer(t.EVENT_ALREADY_STARTED, show_alert=True)
         return
 
     cat = CategoryGroup(name=cat_name, activities=cat_activities)
@@ -131,7 +137,9 @@ async def show_consultation_picker(callback: CallbackQuery, session: AsyncSessio
     """Show the individual 15-min consultation slots."""
     day = int(callback.data.split(":")[1])
 
+    now_utc = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=settings.clock_offset_minutes)
     slots = await get_consultation_slots(session, day)
+    slots = [(a, b) for a, b in slots if a.start_time > now_utc]
     if not slots:
         await callback.answer(t.NO_ACTIVITIES_FOR_DAY, show_alert=True)
         return
