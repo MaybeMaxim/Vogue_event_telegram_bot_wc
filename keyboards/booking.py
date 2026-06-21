@@ -207,7 +207,7 @@ def attendance_keyboard(booking_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="✅ Я буду", callback_data=f"attyes:{booking_id}")],
-            [InlineKeyboardButton(text="❌ Не зможу", callback_data=f"attno:{booking_id}")],
+            [InlineKeyboardButton(text="❌ Скасувати", callback_data=f"attno:{booking_id}")],
         ]
     )
 

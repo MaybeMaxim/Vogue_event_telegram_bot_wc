@@ -87,11 +87,12 @@ async def show_category_picker(callback: CallbackQuery, session: AsyncSession) -
     day = int(callback.data.split(":")[1])
     now_utc = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=settings.clock_offset_minutes)
 
-    activities = await get_activities_for_day(session, day)
+    all_activities = await get_activities_for_day(session, day)
     # Exclude slots that have already started — they are no longer bookable.
-    activities = [(a, b) for a, b in activities if a.start_time > now_utc]
+    activities = [(a, b) for a, b in all_activities if a.start_time > now_utc]
     if not activities:
-        await callback.message.edit_text(t.NO_ACTIVITIES_FOR_DAY, reply_markup=day_picker_keyboard())
+        msg = t.ALL_ACTIVITIES_STARTED if all_activities else t.NO_ACTIVITIES_FOR_DAY
+        await callback.message.edit_text(msg, reply_markup=day_picker_keyboard())
         await callback.answer()
         return
 

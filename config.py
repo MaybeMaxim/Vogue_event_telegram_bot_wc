@@ -35,9 +35,11 @@ class Settings(BaseSettings):
     waitlist_confirm_minutes: int = 5
 
     # Time-driven (ticker) windows, in minutes before an activity starts:
-    #   reminder_minutes: location reminder to booked users + free-seat broadcast to others.
+    #   reminder_minutes: reminder + confirmation request to booked users; free-seat broadcast to others.
+    #   auto_release_minutes: release PENDING_CONFIRMATION bookings as NO_SHOW if unconfirmed.
     #   free_seat_broadcast_minutes: "last chance" free-seat broadcast to non-booked users.
     reminder_minutes: int = 30
+    auto_release_minutes: int = 15
     free_seat_broadcast_minutes: int = 10
 
     # Testing only: shift the ticker's clock by this many minutes (negative = go back in time).

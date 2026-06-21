@@ -147,19 +147,19 @@ REMINDER_FREE_SEATS = (
     "Ще є вільні місця — запишіться у «✍️ Записатись» ⚡️"
 )
 
-# T-30 min: reminder with location for a single activity.
+# T-30 min: reminder + confirmation request for a single activity.
 REMINDER = (
     "⏰ <b>Нагадування!</b> До початку 30 хвилин.\n\n"
     "🗓 <b>{title}</b>\n"
     "🕒 {time_range}\n"
     "📍 {location}\n\n"
-    "Чекаємо на вас 🙂"
+    "Підтвердьте, будь ласка, що прийдете — є 15 хвилин, інакше місце передамо іншим."
 )
 
-# T-20 min: reminder when multiple activities start at the same time.
+# T-30 min: reminder when multiple activities start at the same time.
 REMINDER_MULTI_HEADER = "⏰ <b>Нагадування!</b> О {time} починаються активності, на які ви записались:\n"
 REMINDER_MULTI_ENTRY = "\n🗓 <b>{title}</b>\n📍 {location}"
-REMINDER_MULTI_FOOTER = "\n\nЧекаємо на вас 🙂"
+REMINDER_MULTI_FOOTER = "\n\nПідтвердьте, будь ласка, що прийдете — є 15 хвилин, інакше місця передамо іншим."
 
 # T-15 min: confirmation request.
 CONFIRMATION_REQUEST = (
@@ -210,4 +210,5 @@ WAITLIST_JOINED_WITH_CONFLICT = (
 )
 
 NO_ACTIVITIES_FOR_DAY = "На цей день активностей не знайдено."
+ALL_ACTIVITIES_STARTED = "Усі заходи цього дня вже розпочались. Записів більше немає."
 BOOKING_NOT_OPEN_YET = "⏳ Запис відкривається о <b>{opens_at}</b>."
