@@ -9,7 +9,7 @@ SUPPORT_INTRO = (
 
 CONTACT_ORGANIZER_BUTTON = "📞 Зв'язок з організаторами"
 SEND_MESSAGE_BUTTON = "✉️ Надіслати повідомлення"
-ASK_SEXOLOGIST_BUTTON = "🌸 Запитати сексолога"
+ASK_SEXOLOGIST_BUTTON = "🤍 Питання для SEX WELLNESS TALK"
 REPORT_BUG_BUTTON = "🐞 Повідомити про помилку"
 BACK_BUTTON = "⬅️ Назад"
 CLOSE_BUTTON = "✅ Закрити"

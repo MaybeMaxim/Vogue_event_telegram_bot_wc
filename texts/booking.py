@@ -153,13 +153,14 @@ REMINDER = (
     "🗓 <b>{title}</b>\n"
     "🕒 {time_range}\n"
     "📍 {location}\n\n"
-    "Підтвердьте, будь ласка, що прийдете — є 15 хвилин, інакше місце передамо іншим."
+    "Будь ласка, підтвердіть участь протягом 15 хвилин.\n\n"
+    "У разі відсутності підтвердження місце буде передано гостям із листа очікування."
 )
 
 # T-30 min: reminder when multiple activities start at the same time.
 REMINDER_MULTI_HEADER = "⏰ <b>Нагадування!</b> О {time} починаються активності, на які ви записались:\n"
 REMINDER_MULTI_ENTRY = "\n🗓 <b>{title}</b>\n📍 {location}"
-REMINDER_MULTI_FOOTER = "\n\nПідтвердьте, будь ласка, що прийдете — є 15 хвилин, інакше місця передамо іншим."
+REMINDER_MULTI_FOOTER = "\n\nБудь ласка, підтвердіть участь протягом 15 хвилин.\n\nУ разі відсутності підтвердження місця будуть передані гостям із листа очікування."
 
 # T-15 min: confirmation request.
 CONFIRMATION_REQUEST = (
@@ -187,8 +188,8 @@ OPENS_BROADCAST = (
     "🗓 Також щойно відкрився запис на <b>індивідуальні консультації Анни Баринової</b>!\n"
     "Перейдіть у «✍️ Записатись» → День 1."
 )
-CONFIRM_ATTENDANCE_BUTTON = "✅ Я буду"
-CANT_MAKE_BUTTON = "❌ Не зможу"
+CONFIRM_ATTENDANCE_BUTTON = "✅ Підтвердити участь"
+CANT_MAKE_BUTTON = "❌ Скасувати бронювання"
 
 ATTENDANCE_CONFIRMED = "✅ Дякуємо! Чекаємо на вас 🙂"
 ATTENDANCE_DECLINED = "Зрозуміло, дякуємо що попередили. Місце передамо іншим."
