@@ -77,9 +77,9 @@ async def tick(bot: Bot) -> None:
     now = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=settings.clock_offset_minutes)
 
     async with async_session() as session:
-        await _process_reminders(session, bot, now)
+        just_reminded = await _process_reminders(session, bot, now)
         await _process_reminder_broadcast(session, bot, now)
-        await _process_no_shows(session, bot, now)
+        await _process_no_shows(session, bot, now, skip_ids=just_reminded)
         await _process_free_seat_broadcast(session, bot, now)
         await _process_opens_broadcast(session, bot, now)
         await _process_waitlist_expiry(session, bot, now)
@@ -95,13 +95,21 @@ async def tick(bot: Bot) -> None:
 # T-30: reminder with location to booked users
 # ---------------------------------------------------------------------------
 
-async def _process_reminders(session, bot: Bot, now: datetime) -> None:
+async def _process_reminders(session, bot: Bot, now: datetime) -> set[int]:
     threshold = now + timedelta(minutes=settings.reminder_minutes)
     due = await bookings_crud.bookings_due_for_reminder(session, now, threshold)
 
+    just_reminded: set[int] = set()
+
+    reminder_window = timedelta(minutes=settings.reminder_minutes)
     # Group by (user_id, start_time) so simultaneous activities → one message.
+    # Skip bookings made after the reminder window opened (booked within T-30).
     by_user_start: dict[tuple, list] = defaultdict(list)
     for booking, activity in due:
+        window_opened_at = _naive_utc(activity.start_time) - reminder_window
+        if _naive_utc(booking.created_at) >= window_opened_at:
+            await bookings_crud.mark_reminder_sent(session, booking)
+            continue
         by_user_start[(booking.user_id, activity.start_time)].append((booking, activity))
 
     for (user_pk, _), items in by_user_start.items():
@@ -116,11 +124,9 @@ async def _process_reminders(session, bot: Bot, now: datetime) -> None:
                 time_range=format_time_range(activity.start_time, activity.end_time),
                 location=html.escape(activity.location_text or ""),
             )
-            # Single booking: attach confirmation keyboard.
             keyboard = attendance_keyboard(booking.id)
         else:
-            # Multiple activities at the same start time: one combined message, no keyboard
-            # (can't confirm multiple bookings in one tap — each will be handled separately).
+            # Multiple activities at the same start time: one combined message, no keyboard.
             first_activity = items[0][1]
             header = t.REMINDER_MULTI_HEADER.format(
                 time=format_time(first_activity.start_time)
@@ -139,6 +145,9 @@ async def _process_reminders(session, bot: Bot, now: datetime) -> None:
         for booking, _ in items:
             await bookings_crud.mark_reminder_sent(session, booking)
             await bookings_crud.mark_confirmation_requested(session, booking)
+            just_reminded.add(booking.id)
+
+    return just_reminded
 
 
 # ---------------------------------------------------------------------------
@@ -185,11 +194,13 @@ async def _process_reminder_broadcast(session, bot: Bot, now: datetime) -> None:
 # T-15: release unconfirmed bookings → NO_SHOW + promote waitlist
 # ---------------------------------------------------------------------------
 
-async def _process_no_shows(session, bot: Bot, now: datetime) -> None:
+async def _process_no_shows(session, bot: Bot, now: datetime, skip_ids: set[int] = frozenset()) -> None:
     threshold = now + timedelta(minutes=settings.auto_release_minutes)
     due = await bookings_crud.bookings_due_for_release(session, now, threshold)
 
     for booking, activity in due:
+        if booking.id in skip_ids:
+            continue
         await bookings_crud.mark_no_show(session, booking)
 
         tg_id = await _user_tg_id(session, booking.user_id)
