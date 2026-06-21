@@ -6,42 +6,32 @@ services.booking_service before insertion here.
 """
 
 # Step 1 — day picker
-BOOK_INTRO = "На який день хочете записатись? 👇"
+BOOK_INTRO = "Оберіть день 👇"
 
-# Step 2 — slot picker. The intro is followed by a per-slot overview
-# (time + the activities in that slot), then time buttons below.
-SLOT_PICKER_INTRO = "📅 <b>День {day} ({date})</b>"
-SLOT_PICKER_PROMPT = "Оберіть час, щоб побачити деталі та записатись 👇"
+# Step 2 — category picker
+CATEGORY_PICKER_INTRO = "✍️ <b>День {day} ({date})</b>\n\nОберіть активність для запису 👇"
 
-# One block in the slot-picker overview: time header + activity names.
-SLOT_OVERVIEW_BLOCK = "🕒 <b>{time_range}</b>\n{names}"
-
-# Step 3 — activity picker (one slot)
-ACTIVITY_PICKER_HEADER = "🕒 <b>{time_range}</b>"
-ACTIVITY_PICKER_EXCLUSIVE_HINT = "<i>Можна обрати лише один варіант із цього часу.</i>"
-ACTIVITY_PICKER_LINE = "{dot} <b>{title}</b> — {seats}"
-ACTIVITY_PICKER_SPEAKER = "    👤 {speaker_name}"
-ACTIVITY_PICKER_DESC = "    <i>{description}</i>"
+# Step 3 — sub-slot picker
+SUBSLOT_PICK_TIME_PROMPT = "Оберіть зручний час 👇"
+SUBSLOT_SINGLE_PROMPT = "Натисніть кнопку нижче, щоб записатись 👇"
+SUBSLOT_OPENS_AT = "Запис відкривається о {time}"
 
 # Buttons
-BOOK_ACTIVITY_BUTTON = "✍️ Записатись на «{title}»"
-WAITLIST_ACTIVITY_BUTTON = "🔔 Лист очікування: «{title}»"
-BACK_TO_SLOTS_BUTTON = "⬅️ Назад до часу"
+BACK_TO_CATEGORIES_BUTTON = "⬅️ Назад до активностей"
 BACK_TO_DAYS_BUTTON = "⬅️ Обрати інший день"
 
 # Consultation slot button (leads into the per-slot consultation picker)
-CONSULTATION_SLOT_BUTTON = "🩺 {time_range} · Консультації Анни Барінової"
+CONSULTATION_SLOT_BUTTON = "🩺 {time_range} · Консультації Анни Баринової"
 
 # --- Consultation slot picker ---------------------------------------------
 CONSULTATION_PICKER_HEADER = (
-    "🩺 <b>Консультації Анни Барінової</b>\n"
-    "{time_range}\n\n"
-    "Оберіть вільний час для індивідуальної консультації (15 хв) 👇"
+    "<b>Консультація Анни Баринової</b>\n\n"
+    "Оберіть вільний час для індивідуальної консультації 👇"
 )
 CONSULTATION_SLOT_FREE = "🟢 {time}"
 CONSULTATION_SLOT_TAKEN = "🔴 {time} — зайнято (черга очікування →)"
 CONSULTATION_NONE_FREE = (
-    "🩺 <b>Консультації Анни Барінової</b>\n\n"
+    "🩺 <b>Консультації Анни Баринової</b>\n\n"
     "На жаль, усі слоти наразі зайняті. "
     "Ви можете приєднатись до листа очікування на конкретний час."
 )
@@ -66,19 +56,23 @@ BACK_TO_DAY_BUTTON = "⬅️ Повернутись до Дня {day}"
 BOOKED_OK = (
     "✅ Готово! Вас записано:\n\n"
     "🗓 <b>{title}</b>\n"
-    "🕒 {time_range}\n\n"
-    "Нагадування надішлемо перед початком. Керувати записами можна в «📋 Мої записи»."
+    "🕒 {time_range}"
 )
 ALREADY_BOOKED = "Ви вже записані на «{title}» 🙂"
 CONFLICT_FOUND = (
     "⚠️ На цей час у вас вже є запис:\n\n"
     "🗓 <b>{conflict_title}</b>\n"
     "🕒 {conflict_time}\n\n"
-    "Не можна бути у двох місцях одночасно. "
-    "Спершу скасуйте попередній запис, якщо хочете змінити вибір."
+    "Не можна бути у двох місцях одночасно."
+)
+EXCLUSIVE_GROUP_CONFLICT_FOUND = (
+    "⚠️ Ви вже записані на цей захід:\n\n"
+    "🗓 <b>{conflict_title}</b>\n"
+    "🕒 {conflict_time}\n\n"
+    "Щоб змінити слот, скасуйте попередній запис."
 )
 CONSULTATION_CONFLICT_FOUND = (
-    "⚠️ Ви вже записані на консультацію Анни Барінової:\n\n"
+    "⚠️ Ви вже записані на консультацію Анни Баринової:\n\n"
     "🗓 <b>{conflict_title}</b>\n\n"
     "Можна мати лише одну консультацію. "
     "Скасуйте поточний запис, якщо хочете обрати інший час."
@@ -91,7 +85,7 @@ BOOKED_OK_WAITLIST_DROPPED = (
     "оскільки можна мати лише одну консультацію."
 )
 WAITLIST_CONSULTATION_CONFLICT = (
-    "⚠️ Ви вже перебуваєте в черзі очікування на іншу консультацію Анни Барінової. "
+    "⚠️ Ви вже перебуваєте в черзі очікування на іншу консультацію Анни Баринової. "
     "Можна чекати лише на одну консультацію одночасно."
 )
 WAITLIST_OFFER_CONFIRMED_SWAPPED = (
@@ -140,21 +134,58 @@ WAITLIST_OFFER_TAKEN = "На жаль, місце вже зайняте."
 # Placeholder kept for any not-yet-wired callbacks.
 BOOKING_COMING_SOON = "🚧 Ця дія буде доступна найближчим часом."
 
+EVENT_ALREADY_STARTED = "❌ Захід вже розпочався — запис закрито."
+
 # --- Time-driven notifications (ticker) -----------------------------------
-REMINDER = (
-    "⏰ Нагадування!\n\n"
+
+# T-30 min: free-seat broadcast to non-booked users (sent alongside booked-user reminders).
+REMINDER_FREE_SEATS = (
+    "🟡 <b>Починається за 30 хвилин!</b>\n\n"
     "🗓 <b>{title}</b>\n"
     "🕒 {time_range}\n"
     "📍 {location}\n\n"
-    "Скоро початок — чекаємо на вас 🙂"
+    "Ще є вільні місця — запишіться у «✍️ Записатись» ⚡️"
 )
 
-CONFIRMATION_REQUEST = (
-    "⏰ Зовсім скоро починається:\n\n"
+# T-30 min: reminder with location for a single activity.
+REMINDER = (
+    "⏰ <b>Нагадування!</b> До початку 30 хвилин.\n\n"
     "🗓 <b>{title}</b>\n"
     "🕒 {time_range}\n"
     "📍 {location}\n\n"
-    "Підтвердьте, будь ласка, що будете — інакше місце звільниться для інших."
+    "Чекаємо на вас 🙂"
+)
+
+# T-20 min: reminder when multiple activities start at the same time.
+REMINDER_MULTI_HEADER = "⏰ <b>Нагадування!</b> О {time} починаються активності, на які ви записались:\n"
+REMINDER_MULTI_ENTRY = "\n🗓 <b>{title}</b>\n📍 {location}"
+REMINDER_MULTI_FOOTER = "\n\nЧекаємо на вас 🙂"
+
+# T-15 min: confirmation request.
+CONFIRMATION_REQUEST = (
+    "⏰ До початку 30 хвилин:\n\n"
+    "🗓 <b>{title}</b>\n"
+    "🕒 {time_range}\n"
+    "📍 {location}\n\n"
+    "Підтвердьте, будь ласка, що будете — у вас є 15 хвилин, інакше місце звільниться для інших."
+)
+
+# T-10 min: free seat broadcast to all users.
+FREE_SEAT_BROADCAST = (
+    "🟢 <b>З'явилось вільне місце!</b>\n\n"
+    "🗓 <b>{title}</b>\n"
+    "🕒 {time_range}\n"
+    "📍 {location}\n\n"
+    "Починається за 10 хвилин! Запишіться у розділі «✍️ Записатись» ⚡️"
+)
+
+# At booking_opens_at: broadcast to all users (consultation booking just opened + PUBLIC TALK started).
+OPENS_BROADCAST = (
+    "🎤 Щойно розпочався <b>PUBLIC TALK: Секрети збереження молодості й новації пластичної хірургії</b>\n"
+    "Спікерка: Анна Баринова\n"
+    "📍 Лекторій, 5 поверх\n\n"
+    "🗓 Також щойно відкрився запис на <b>індивідуальні консультації Анни Баринової</b>!\n"
+    "Перейдіть у «✍️ Записатись» → День 1."
 )
 CONFIRM_ATTENDANCE_BUTTON = "✅ Я буду"
 CANT_MAKE_BUTTON = "❌ Не зможу"
@@ -179,3 +210,4 @@ WAITLIST_JOINED_WITH_CONFLICT = (
 )
 
 NO_ACTIVITIES_FOR_DAY = "На цей день активностей не знайдено."
+BOOKING_NOT_OPEN_YET = "⏳ Запис відкривається о <b>{opens_at}</b>."

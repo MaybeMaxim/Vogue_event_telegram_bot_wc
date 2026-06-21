@@ -7,7 +7,9 @@ SUPPORT_INTRO = (
     "Чим можемо допомогти? Оберіть один із варіантів 👇"
 )
 
-CONTACT_ORGANIZER_BUTTON = "📞 Написати організаторам"
+CONTACT_ORGANIZER_BUTTON = "📞 Зв'язок з організаторами"
+SEND_MESSAGE_BUTTON = "✉️ Надіслати повідомлення"
+ASK_SEXOLOGIST_BUTTON = "🌸 Запитати сексолога"
 REPORT_BUG_BUTTON = "🐞 Повідомити про помилку"
 BACK_BUTTON = "⬅️ Назад"
 CLOSE_BUTTON = "✅ Закрити"
@@ -15,10 +17,19 @@ CANCEL_BUTTON = "❌ Скасувати"
 
 # Contact organizer screen
 CONTACT_ORGANIZER = (
-    "📞 <b>Написати організаторам</b>\n\n"
-    "Звʼяжіться з нами напряму:\n"
-    "{contact}\n\n"
-    "Ми відповімо якнайшвидше 🙂"
+    "📞 <b>Зв'язок з організаторами</b>\n\n"
+    "Напишіть ваше запитання — представник організаторів зв'яжеться з вами.\n\n"
+    "Для вирішення екстрених питань:\n"
+    "<b>{contact}</b>"
+)
+
+# Write-to-organizer FSM prompt
+ORG_MESSAGE_PROMPT = (
+    "✉️ <b>Повідомлення організаторам</b>\n\n"
+    "Напишіть ваше запитання або повідомлення — ми передамо його команді."
+)
+ORG_MESSAGE_SENT = (
+    "✅ Дякуємо! Ми отримали ваше повідомлення і вже працюємо над його вирішенням."
 )
 
 # Report a bug/mistake flow
@@ -36,3 +47,4 @@ CANCELLED = "Скасовано."
 
 # Forwarded to the support chat (not shown to the user).
 FWD_BUG = "🐞 <b>Повідомлення про помилку</b>\nВід: {user} (id <code>{tg_id}</code>)\n\n{text}"
+FWD_ORG = "✉️ <b>Повідомлення організаторам</b>\nВід: {user} (id <code>{tg_id}</code>)\n\n{text}"

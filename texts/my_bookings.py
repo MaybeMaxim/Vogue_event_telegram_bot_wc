@@ -16,6 +16,7 @@ BOOKING_LOCATION = "      📍 {location}"
 CANCEL_BUTTON = "❌ {time} {title}"
 CANCELLED_OK = "Запис на «{title}» скасовано."
 CANCEL_FAILED = "Не вдалося скасувати запис. Можливо, його вже скасовано."
+CANCEL_EVENT_STARTED = "❌ Захід вже розпочався — скасування недоступне."
 
 # Waitlist section
 WAITLIST_SECTION_HEADER = "🔔 <b>Черга очікування</b>"

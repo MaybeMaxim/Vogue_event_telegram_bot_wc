@@ -21,7 +21,7 @@ from db.crud import bookings as bookings_crud
 from db.crud import waitlist as waitlist_crud
 from db.crud.activities import get_activity_by_id
 from db.models import Activity, Booking, Waitlist
-from db.crud.bookings import find_consultation_booking
+from db.crud.bookings import find_consultation_booking, get_booking_in_exclusive_group
 from db.crud.waitlist import find_consultation_waitlist_entry
 from scheduler.locks import activity_lock
 
@@ -56,9 +56,10 @@ class BookingResult:
 
 OUTCOME_CONFIRMED = "confirmed"
 OUTCOME_ALREADY_BOOKED = "already_booked"
-OUTCOME_CONFLICT = "conflict"                    # overlapping/exclusive booking exists
+OUTCOME_CONFLICT = "conflict"                          # time-overlapping booking exists
+OUTCOME_EXCLUSIVE_GROUP_CONFLICT = "exclusive_group_conflict"  # same event, different sub-slot
 OUTCOME_CONSULTATION_CONFLICT = "consultation_conflict"  # already booked a consultation slot
-OUTCOME_FULL = "full"                            # no seats; user may join the waitlist
+OUTCOME_FULL = "full"                                  # no seats; user may join the waitlist
 OUTCOME_NOT_FOUND = "not_found"
 
 
@@ -110,6 +111,20 @@ async def try_create_booking(session: AsyncSession, user_id: int, activity_id: i
             conflict_booking=conflict,
             conflict_activity=conflict_activity,
         )
+
+    # Exclusive groups (e.g. Kérastase sub-slots, test-drive sub-slots):
+    # user can hold only one booking per group, even if slots don't overlap in time.
+    if activity.exclusive_group_id is not None:
+        group_conflict = await get_booking_in_exclusive_group(
+            session, user_id, activity.exclusive_group_id, exclude_activity_id=activity_id
+        )
+        if group_conflict is not None:
+            group_activity = await get_activity_by_id(session, group_conflict.activity_id)
+            return BookingResult(
+                status=OUTCOME_EXCLUSIVE_GROUP_CONFLICT,
+                conflict_booking=group_conflict,
+                conflict_activity=group_activity,
+            )
 
     # Consultation slots are exclusive: one per user across all slots.
     if activity.is_consultation_slot:

@@ -24,7 +24,7 @@ from states.registration import Registration
 from texts import registration as t
 
 # Commands that must always pass through, even for unregistered users.
-_ALWAYS_ALLOWED_COMMANDS = {"/start", "/admin"}
+_ALWAYS_ALLOWED_COMMANDS = {"/start", "/admin", "/myid"}
 
 # Callback-data prefixes that belong to the registration flow itself and
 # must always reach their handler, even before any FSM state is set

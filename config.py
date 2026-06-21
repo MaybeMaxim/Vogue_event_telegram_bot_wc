@@ -9,7 +9,12 @@ class Settings(BaseSettings):
 
     # The event runs 24-25.06 — the year is configurable so seed data
     # doesn't need to be edited by hand each time the bot is reused.
+    # For testing, override event_day1/event_day2 in .env to shift the
+    # actual activity datetimes without touching the display labels.
     event_year: int = 2026
+    event_month: int = 6
+    event_day1: int = 24
+    event_day2: int = 25
     event_timezone: str = "Europe/Kyiv"
 
     # Support section configuration.
@@ -18,27 +23,30 @@ class Settings(BaseSettings):
     # support_chat_id: chat (e.g. an admin group) where "ask a question"
     #   and "report a bug" submissions are forwarded. Falls back to the
     #   first admin id if left at 0.
-    organizer_contact: str = "@organizer"
+    organizer_contact: str = "+380989273051"
     support_chat_id: int = 0
 
     # Booking configuration.
     # consultation_slot_minutes: length of each Anna Barinova consultation
-    #   slot (16:00-19:00 is divided into back-to-back slots of this length).
+    #   slot (divided into back-to-back slots of this length).
     # waitlist_confirm_minutes: how long a promoted waitlist user has to
     #   confirm an offered spot before it passes to the next person.
     consultation_slot_minutes: int = 20
-    waitlist_confirm_minutes: int = 15
+    waitlist_confirm_minutes: int = 5
 
     # Time-driven (ticker) windows, in minutes before an activity starts:
-    #   reminder_minutes: plain reminder (only for activities that DON'T
-    #       require confirmation; otherwise the confirmation request below
-    #       serves as the reminder and carries the location).
-    #   confirmation_minutes: when to ask the user to confirm attendance.
-    #   auto_release_minutes: if still unconfirmed by this point, release
-    #       the seat as a no-show and promote the waitlist.
-    reminder_minutes: int = 15
-    confirmation_minutes: int = 30
-    auto_release_minutes: int = 5
+    #   reminder_minutes: location reminder to booked users + free-seat broadcast to others.
+    #   free_seat_broadcast_minutes: "last chance" free-seat broadcast to non-booked users.
+    reminder_minutes: int = 30
+    free_seat_broadcast_minutes: int = 10
+
+    # Testing only: shift the ticker's clock by this many minutes (negative = go back in time).
+    # Set to 0 (or remove) for production. Does not affect user-facing times or booking locks.
+    clock_offset_minutes: int = 0
+
+    # Deadline for anonymous sexologist questions: naive UTC datetime
+    # string "YYYY-MM-DD HH:MM" (Europe/Kyiv 14:00 on Day 2 = UTC 11:00).
+    sexologist_question_deadline: str = "2026-06-25 11:00"
 
     # Google Sheets live sync (optional).
     # gsheets_enabled: master switch; if False the bot skips all Sheets work.

@@ -19,6 +19,7 @@ def admin_menu_keyboard() -> InlineKeyboardMarkup:
             [InlineKeyboardButton(text=t.BTN_SEARCH, callback_data="adm:search")],
             [InlineKeyboardButton(text=t.BTN_ADD, callback_data="adm:add")],
             [InlineKeyboardButton(text=t.BTN_EXPORT, callback_data="adm:export")],
+            [InlineKeyboardButton(text="👥 Адміни", callback_data="adm:admins")],
             [InlineKeyboardButton(text=t.BTN_CLOSE, callback_data="adm:close")],
         ]
     )

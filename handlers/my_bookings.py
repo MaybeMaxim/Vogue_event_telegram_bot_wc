@@ -63,7 +63,7 @@ async def _render_grouped(session, bookings, waitlist) -> str:
             by_day.setdefault(activity.day, []).append((booking, activity))
 
         for day in sorted(by_day):
-            lines = [t.DAY_SECTION.format(day=day, date=_day_date(day))]
+            entries = []
             for _, activity in by_day[day]:
                 entry = t.BOOKING_ENTRY.format(
                     time_range=format_time_range(activity.start_time, activity.end_time),
@@ -71,8 +71,9 @@ async def _render_grouped(session, bookings, waitlist) -> str:
                 )
                 if activity.location_text:
                     entry += "\n" + t.BOOKING_LOCATION.format(location=html.escape(activity.location_text))
-                lines.append(entry)
-            blocks.append("\n".join(lines))
+                entries.append(entry)
+            day_block = t.DAY_SECTION.format(day=day, date=_day_date(day)) + "\n\n" + "\n\n".join(entries)
+            blocks.append(day_block)
 
     if waitlist:
         wl_lines = [t.WAITLIST_SECTION_HEADER]
@@ -108,13 +109,22 @@ async def open_my_bookings(message: Message, session: AsyncSession) -> None:
 async def cancel_my_booking(callback: CallbackQuery, session: AsyncSession, bot: Bot) -> None:
     booking_id = int(callback.data.split(":")[1])
     booking = await get_booking_by_id(session, booking_id)
+    user = await get_user_by_tg_id(session, callback.from_user.id)
 
-    if booking is None:
+    if booking is None or user is None or booking.user_id != user.id:
         await callback.answer(t.CANCEL_FAILED, show_alert=True)
         return
 
     activity = await get_activity_by_id(session, booking.activity_id)
     title = html.escape(display_title(activity)) if activity else ""
+
+    if activity is not None:
+        from datetime import datetime, timedelta, timezone
+        from config import settings
+        now_utc = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=settings.clock_offset_minutes)
+        if activity.start_time <= now_utc:
+            await callback.answer(t.CANCEL_EVENT_STARTED, show_alert=True)
+            return
 
     freed_activity = await actions.cancel_booking(session, booking)
     await callback.answer(t.CANCELLED_OK.format(title=title))

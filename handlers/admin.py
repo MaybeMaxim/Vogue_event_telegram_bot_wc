@@ -26,9 +26,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.crud import admin as admin_crud
 from db.crud.activities import get_activity_by_id
+from db.crud.admins import add_admin, list_admins, remove_admin
 from db.crud.bookings import get_booking_by_id
 from db.crud.users import get_user_by_tg_id
-from filters.admin import IsAdmin
+from filters.admin import IsAdmin, add_admin_to_cache, is_admin, remove_admin_from_cache
 from keyboards.admin import (
     activity_list_keyboard,
     add_guest_results_keyboard,
@@ -218,7 +219,7 @@ async def waitlists_consult(callback: CallbackQuery, session: AsyncSession) -> N
     from db.models import WaitlistStatus
 
     consult_slots = await admin_crud.consultation_activities(session)
-    lines = [t.WAITLIST_HEADER.format(title="Консультації Анни Барінової", time_range="")]
+    lines = [t.WAITLIST_HEADER.format(title="Консультації Анни Баринової", time_range="")]
     found = False
     for activity in consult_slots:
         entries = await admin_crud.waitlist_for_activity(session, activity.id)
@@ -489,3 +490,70 @@ async def _send_export(callback: CallbackQuery, path: Path, caption_template: st
         path.unlink(missing_ok=True)
     except OSError:
         pass
+
+
+# ---------------------------------------------------------------------------
+# Admin management
+# ---------------------------------------------------------------------------
+
+@router.callback_query(F.data == "adm:admins")
+async def show_admins(callback: CallbackQuery, session: AsyncSession) -> None:
+    db_admins = await list_admins(session)
+    lines = ["👥 <b>Адміністратори</b>\n"]
+    lines.append("<b>З config (.env):</b>")
+    from config import settings
+    for tg_id in settings.admin_ids:
+        lines.append(f"  • <code>{tg_id}</code>")
+    if db_admins:
+        lines.append("\n<b>Додані через бота:</b>")
+        for a in db_admins:
+            lines.append(f"  • <code>{a.tg_id}</code> (додав <code>{a.added_by_tg_id}</code>)")
+    else:
+        lines.append("\n<i>Через бота не додано жодного.</i>")
+    lines.append(
+        "\n<b>Як додати:</b> надішліть /addadmin <code>&lt;tg_id&gt;</code>\n"
+        "<b>Як видалити:</b> /removeadmin <code>&lt;tg_id&gt;</code>\n"
+        "<b>Дізнатись свій ID:</b> /myid"
+    )
+    await callback.message.edit_text(
+        "\n".join(lines),
+        reply_markup=back_to_menu_keyboard(),
+    )
+    await callback.answer()
+
+
+@router.message(Command("addadmin"))
+async def cmd_add_admin(message: Message, session: AsyncSession) -> None:
+    parts = (message.text or "").split()
+    if len(parts) != 2 or not parts[1].lstrip("-").isdigit():
+        await message.answer("Використання: /addadmin <code>&lt;tg_id&gt;</code>")
+        return
+    tg_id = int(parts[1])
+    if is_admin(tg_id):
+        await message.answer(f"<code>{tg_id}</code> вже є адміністратором.")
+        return
+    result = await add_admin(session, tg_id, added_by=message.from_user.id)
+    if result is None:
+        await message.answer(f"<code>{tg_id}</code> вже є адміністратором.")
+        return
+    add_admin_to_cache(tg_id)
+    await message.answer(f"✅ <code>{tg_id}</code> додано як адміністратора.")
+
+
+@router.message(Command("removeadmin"))
+async def cmd_remove_admin(message: Message, session: AsyncSession) -> None:
+    parts = (message.text or "").split()
+    if len(parts) != 2 or not parts[1].lstrip("-").isdigit():
+        await message.answer("Використання: /removeadmin <code>&lt;tg_id&gt;</code>")
+        return
+    tg_id = int(parts[1])
+    from config import settings
+    if tg_id in settings.admin_ids:
+        await message.answer(f"<code>{tg_id}</code> є в config (.env) — видаліть звідти вручну.")
+        return
+    removed = await remove_admin(session, tg_id)
+    if not removed:
+        await message.answer(f"<code>{tg_id}</code> не знайдено серед адміністраторів.")
+        return
+    remove_admin_from_cache(tg_id)
+    await message.answer(f"✅ <code>{tg_id}</code> видалено з адміністраторів.")

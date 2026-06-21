@@ -103,6 +103,17 @@ class Activity(Base):
     # True for each generated Anna Barinova consultation slot.
     is_consultation_slot: Mapped[bool] = mapped_column(default=False)
 
+    # Ticker broadcast flags — set once the corresponding broadcast has been
+    # sent so the ticker doesn't fire it again on the next pass.
+    broadcast_sent: Mapped[bool] = mapped_column(default=False)          # free-seat broadcast at T-10
+    opens_broadcast_sent: Mapped[bool] = mapped_column(default=False)    # booking-opens broadcast
+    reminder_broadcast_sent: Mapped[bool] = mapped_column(default=False) # T-30 broadcast to non-booked
+
+    # If set, booking attempts before this UTC datetime are rejected with
+    # a "not open yet" message (used for consultation slots that unlock at
+    # 15:30 on Day 1).
+    booking_opens_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     bookings: Mapped[list["Booking"]] = relationship(back_populates="activity")
     waitlist_entries: Mapped[list["Waitlist"]] = relationship(back_populates="activity")
 
@@ -192,6 +203,21 @@ class Waitlist(Base):
 # Question (anonymous Q&A for the sexologist lecture)
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Admin (runtime-added admins, beyond the static admin_ids in config)
+# ---------------------------------------------------------------------------
+
+class Admin(Base):
+    """Extra admin users added at runtime via /addadmin."""
+
+    __tablename__ = "admins"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    tg_id: Mapped[int] = mapped_column(BigInteger, unique=True, index=True)
+    added_by_tg_id: Mapped[int] = mapped_column(BigInteger)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
 class Question(Base):
     """
     An anonymous question submitted for the sexology lecture.
@@ -205,5 +231,24 @@ class Question(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
 
     tg_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    text: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+# ---------------------------------------------------------------------------
+# SupportMessage (messages to organizers and bug reports)
+# ---------------------------------------------------------------------------
+
+class SupportMessage(Base):
+    """A message sent through the support flow (organizer contact or bug report)."""
+
+    __tablename__ = "support_messages"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+
+    tg_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    full_name: Mapped[str] = mapped_column(String(256))
+    username: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    message_type: Mapped[str] = mapped_column(String(16))  # "org" or "bug"
     text: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)

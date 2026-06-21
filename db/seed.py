@@ -1,44 +1,32 @@
 """
-Seed script: populates the `activities` table with the Wellness Escape
-schedule, per the CORRECTED brief (poprawki override the original TZ).
+Seed script: populates the `activities` table for Vogue Ukraine Wellness Escape
+(24-25.06) per the confirmed technical requirements.
 
 Run once after init_db():
 
     python -m db.seed
 
-Re-running this script will raise if activities already exist, to avoid
-accidental duplicates — delete wellness.db (or the activities rows) first
-if you need to reseed during development.
+Re-running will refuse if any activities already exist.
 
---- SCHEDULE SOURCE OF TRUTH ----------------------------------------------
+--- SCHEDULE ---------------------------------------------------------------
 
-Day 1 (event_year-06-24):
-  12:00-14:00  exclusive group "day1_slot1" (pick ONE):
-      - Тест-драйв            (20)
-      - Фейс-масаж            (20)
-      - Екскурсія територією  (20)
-  16:00-17:00  standalone:
-      - Лекція "Garden Therapy" з Сонею Солтес (60)
+Day 1 (24.06):
+  12:00-13:00  Мінітест-драйв sub-slots × 3 (12:00/12:20/12:40, cap=3 each, паркінг)
+               Босоніж: прогулянка з Дар'єю Білодід (cap=20, понтон)
+  13:00-14:00  Мінітест-драйв sub-slots × 3 (13:00/13:20/13:40, cap=3 each, паркінг)
+               Wellness Walk (13:00, cap=20, зона реєстрації)
+               Wellness Walk (13:30, cap=20, зона реєстрації)
+  12:00-16:00  Kérastase hair-care slots (every 20 min 12:00→15:40, cap=1 each)
+  16:20-18:40  Консультації Анни Баринової (8 × 20-min, cap=1, кімн.101 1-й пов.)
+               booking_opens_at = 15:30 local
+  17:00-18:00  Garden Therapy з Сонею Солтес (cap=60, Edem Garden)
 
-Day 2 (event_year-06-25):
-  11:00-12:00  exclusive group "day2_slot1" (pick ONE):
-      - Барре                 (20)
-      - Тест-драйв            (20)
-  12:00-13:00  exclusive group "day2_slot2" (pick ONE):
-      - Sound healing         (20)
-      - Тест-драйв            (20)
-  16:00-19:00  Anna Barinova individual consultations:
-      - generated as 15-minute slots, capacity=1 each,
-        is_consultation_slot=True, NOT part of an exclusive group
-        (they don't overlap with each other by construction, and the
-        "no parallel activities" rule via time-overlap already prevents
-        booking a consultation that overlaps another activity).
-
-LOCATION PLACEHOLDERS:
-  Real venue locations were not specified in the brief. Each activity
-  below has a placeholder location string marked "# TODO location" —
-  replace these with actual venue zone names before the event so that
-  reminder messages ("куди йти") are accurate.
+Day 2 (25.06):
+  11:30-12:30  Мінітест-драйв sub-slots × 3 (11:30/11:50/12:10, cap=3 each, паркінг)
+               Барре з Катериною Кухар (cap=20, понтон)
+  12:30-13:30  Мінітест-драйв sub-slots × 3 (12:30/12:50/13:10, cap=3 each, паркінг)
+               Sound Healing (cap=20, лекторій 5 пов.)
+  12:00-16:00  Kérastase hair-care slots (every 20 min 12:00→15:40, cap=1 each)
 ----------------------------------------------------------------------------
 """
 
@@ -55,226 +43,241 @@ _TZ = ZoneInfo(settings.event_timezone)
 
 
 def _dt(day: int, hour: int, minute: int = 0) -> datetime:
-    """
-    Build the UTC datetime for a given event day (1 or 2) and local
-    (Europe/Kyiv) time.
-
-    The result is returned as a NAIVE datetime in UTC, matching how
-    SQLite/SQLAlchemy round-trips DateTime values (see
-    utils.time_utils.to_local for why naive-UTC is the storage
-    convention used throughout this project).
-    """
-    local_dt = datetime(settings.event_year, 6, 24 if day == 1 else 25, hour, minute, tzinfo=_TZ)
+    """Naive UTC datetime for a given event day (1=day1, 2=day2) and local time."""
+    calendar_day = settings.event_day1 if day == 1 else settings.event_day2
+    local_dt = datetime(settings.event_year, settings.event_month, calendar_day, hour, minute, tzinfo=_TZ)
     return local_dt.astimezone(timezone.utc).replace(tzinfo=None)
+
+
+def _testdrive_slots(day: int, starts: list[tuple[int, int]], group_id: str) -> list[Activity]:
+    """Generate mini test-drive sub-slots (20 min each, cap=3)."""
+    slots = []
+    for hour, minute in starts:
+        start = _dt(day, hour, minute)
+        end = start + timedelta(minutes=20)
+        local_start = start.replace(tzinfo=timezone.utc).astimezone(_TZ)
+        local_end = end.replace(tzinfo=timezone.utc).astimezone(_TZ)
+        slots.append(Activity(
+            title=f"Тест-драйв MINI Countryman ({local_start.strftime('%H:%M')}-{local_end.strftime('%H:%M')})",
+            day=day,
+            start_time=start,
+            end_time=end,
+            capacity=3,
+            description="Короткий ознайомчий тест-драйв MINI Countryman з інструктором (20 хв).",
+            speaker_name=None,
+            speaker_social_url=None,
+            location_text="Паркінг + рецепція",
+            exclusive_group_id=group_id,
+            requires_confirmation=True,
+            is_consultation_slot=False,
+            booking_opens_at=None,
+        ))
+    return slots
+
+
+def _kerastase_slots(day: int) -> list[Activity]:
+    """Generate Kérastase hair-care slots: every 20 min 12:00-15:40, cap=1."""
+    group_id = f"d{day}_kerastase"
+    slots = []
+    start = _dt(day, 12, 0)
+    window_end = _dt(day, 16, 0)
+    step = timedelta(minutes=20)
+    while start < window_end:
+        end = start + step
+        local_start = start.replace(tzinfo=timezone.utc).astimezone(_TZ)
+        local_end = end.replace(tzinfo=timezone.utc).astimezone(_TZ)
+        slots.append(Activity(
+            title=f"Kérastase: діагностика волосся ({local_start.strftime('%H:%M')}-{local_end.strftime('%H:%M')})",
+            day=day,
+            start_time=start,
+            end_time=end,
+            capacity=1,
+            description="Індивідуальна діагностика стану волосся та доглядова процедура від Kérastase.",
+            speaker_name=None,
+            speaker_social_url=None,
+            location_text="5-й поверх",
+            exclusive_group_id=group_id,
+            requires_confirmation=False,
+            is_consultation_slot=False,
+            booking_opens_at=None,
+        ))
+        start = end
+    return slots
 
 
 def _consultation_slots() -> list[Activity]:
     """
-    Generate Anna Barinova's individual consultation slots:
-    16:00-19:00, 15-minute increments -> 12 slots, capacity 1 each.
+    8 consultation slots on Day 1: 16:20-18:40 in 20-min increments, cap=1 each.
+    Booking unlocks at 15:30 local time on Day 1.
     """
-    slots: list[Activity] = []
-
-    slot_start = _dt(2, 16, 0)
-    window_end = _dt(2, 19, 0)
-    slot_length = timedelta(minutes=15)
-
-    while slot_start < window_end:
-        slot_end = slot_start + slot_length
-
-        # slot_start/slot_end are naive UTC; format the title using
-        # local (event timezone) wall-clock time for readability.
-        local_start = slot_start.replace(tzinfo=timezone.utc).astimezone(_TZ)
-        local_end = slot_end.replace(tzinfo=timezone.utc).astimezone(_TZ)
-
-        slots.append(
-            Activity(
-                title=f"Консультація Анни Барінової ({local_start.strftime('%H:%M')}-{local_end.strftime('%H:%M')})",
-                day=2,
-                start_time=slot_start,
-                end_time=slot_end,
-                capacity=1,
-                description="Індивідуальна консультація з хірургинею Анною Баріновою.",
-                speaker_name="Анна Барінова",
-                speaker_social_url=None,
-                location_text="Кабінет консультацій",  # TODO location
-                exclusive_group_id=None,
-                requires_confirmation=True,
-                is_consultation_slot=True,
-            )
-        )
-        slot_start = slot_end
-
+    opens_at = _dt(1, 15, 30)
+    slots = []
+    start = _dt(1, 16, 0)
+    slot_end_boundary = _dt(1, 19, 0)  # 9 slots: 16:00/16:20/16:40/17:00/17:20/17:40/18:00/18:20/18:40
+    step = timedelta(minutes=20)
+    while start < slot_end_boundary:
+        end = start + step
+        local_start = start.replace(tzinfo=timezone.utc).astimezone(_TZ)
+        local_end = end.replace(tzinfo=timezone.utc).astimezone(_TZ)
+        slots.append(Activity(
+            title=f"Консультація Анни Баринової ({local_start.strftime('%H:%M')}-{local_end.strftime('%H:%M')})",
+            day=1,
+            start_time=start,
+            end_time=end,
+            capacity=1,
+            description="Індивідуальна консультація з лікарем-хірургом Анною Бариновою.",
+            speaker_name="Анна Баринова",
+            speaker_social_url=None,
+            location_text="Кімната 101, 1-й поверх",
+            exclusive_group_id=None,
+            requires_confirmation=True,
+            is_consultation_slot=True,
+            booking_opens_at=opens_at,
+        ))
+        start = end
     return slots
 
 
 def build_seed_activities() -> list[Activity]:
-    """Return the full list of Activity rows to insert."""
     activities: list[Activity] = []
 
     # ------------------------------------------------------------------
-    # Day 1, 12:00-14:00 — exclusive group "day1_slot1"
+    # Day 1  12:00-13:00 block  (group d1_slot1)
     # ------------------------------------------------------------------
-    day1_start = _dt(1, 12, 0)
-    day1_end = _dt(1, 14, 0)
+    activities.extend(_testdrive_slots(1, [(12, 0), (12, 20), (12, 40)], "d1_slot1"))
 
-    activities.append(
-        Activity(
-            title="Тест-драйв",
-            day=1,
-            start_time=day1_start,
-            end_time=day1_end,
-            capacity=20,
-            description="Спробуйте автомобіль на тестовому маршруті разом з інструктором.",
-            speaker_name=None,
-            speaker_social_url=None,
-            location_text="Зона тест-драйву",  # TODO location
-            exclusive_group_id="day1_slot1",
-            requires_confirmation=True,
-            is_consultation_slot=False,
-        )
-    )
-    activities.append(
-        Activity(
-            title="Фейс-масаж",
-            day=1,
-            start_time=day1_start,
-            end_time=day1_end,
-            capacity=20,
-            description="Розслаблюючий масаж обличчя від професійних майстрів.",
-            speaker_name=None,
-            speaker_social_url=None,
-            location_text="Зона фейс-масажу",  # TODO location
-            exclusive_group_id="day1_slot1",
-            requires_confirmation=True,
-            is_consultation_slot=False,
-        )
-    )
-    activities.append(
-        Activity(
-            title="Екскурсія територією",
-            day=1,
-            start_time=day1_start,
-            end_time=day1_end,
-            capacity=20,
-            description="Прогулянка територією заходу з гідом.",
-            speaker_name=None,
-            speaker_social_url=None,
-            location_text="Збір біля головного входу",  # TODO location
-            exclusive_group_id="day1_slot1",
-            requires_confirmation=True,
-            is_consultation_slot=False,
-        )
-    )
+    activities.append(Activity(
+        title="Розминка з Дар'єю Білодід",
+        day=1,
+        start_time=_dt(1, 12, 0),
+        end_time=_dt(1, 13, 0),
+        capacity=20,
+        description="Розслаблювальна розминка босоніж з олімпійською призеркою з дзюдо Дар'єю Білодід.",
+        speaker_name="Дар'я Білодід",
+        speaker_social_url=None,
+        location_text="Понтон",
+        exclusive_group_id="d1_slot1",
+        requires_confirmation=True,
+        is_consultation_slot=False,
+        booking_opens_at=None,
+    ))
 
     # ------------------------------------------------------------------
-    # Day 1, 16:00-17:00 — standalone lecture
+    # Day 1  13:00-14:00 block  (group d1_slot2)
     # ------------------------------------------------------------------
-    activities.append(
-        Activity(
-            title='Лекція "Garden Therapy" із Сонею Солтес',
-            day=1,
-            start_time=_dt(1, 16, 0),
-            end_time=_dt(1, 17, 0),
-            capacity=60,
-            description="Про терапевтичну силу садівництва та зв'язок із природою.",
-            speaker_name="Соня Солтес",
-            speaker_social_url=None,
-            location_text="Лекційний зал",  # TODO location
-            exclusive_group_id=None,
-            requires_confirmation=True,
-            is_consultation_slot=False,
-        )
-    )
+    activities.extend(_testdrive_slots(1, [(13, 0), (13, 20), (13, 40)], "d1_slot2"))
+
+    activities.append(Activity(
+        title="Wellness Walk (13:00-13:30)",
+        day=1,
+        start_time=_dt(1, 13, 0),
+        end_time=_dt(1, 13, 30),
+        capacity=20,
+        description="Наснажлива прогулянка з флористкою Юлією Борисенко та шеф-редакторкою vogue.ua Віолеттою Федоровою.",
+        speaker_name="Юлія Борисенко та Віолетта Федорова",
+        speaker_social_url=None,
+        location_text="Рецепція",
+        exclusive_group_id="d1_slot2",
+        requires_confirmation=True,
+        is_consultation_slot=False,
+        booking_opens_at=None,
+    ))
+    activities.append(Activity(
+        title="Wellness Walk (13:30-14:00)",
+        day=1,
+        start_time=_dt(1, 13, 30),
+        end_time=_dt(1, 14, 0),
+        capacity=20,
+        description="Наснажлива прогулянка з флористкою Юлією Борисенко та шеф-редакторкою vogue.ua Віолеттою Федоровою.",
+        speaker_name="Юлія Борисенко та Віолетта Федорова",
+        speaker_social_url=None,
+        location_text="Рецепція",
+        exclusive_group_id="d1_slot2",
+        requires_confirmation=True,
+        is_consultation_slot=False,
+        booking_opens_at=None,
+    ))
 
     # ------------------------------------------------------------------
-    # Day 2, 11:00-12:00 — exclusive group "day2_slot1"
+    # Day 1  Kérastase slots (12:00-15:40, every 20 min)
     # ------------------------------------------------------------------
-    day2_slot1_start = _dt(2, 11, 0)
-    day2_slot1_end = _dt(2, 12, 0)
-
-    activities.append(
-        Activity(
-            title="Барре",
-            day=2,
-            start_time=day2_slot1_start,
-            end_time=day2_slot1_end,
-            capacity=20,
-            description="Заняття біля станка для гнучкості, постави та тонусу м'язів.",
-            speaker_name=None,
-            speaker_social_url=None,
-            location_text="Зала для групових занять",  # TODO location
-            exclusive_group_id="day2_slot1",
-            requires_confirmation=True,
-            is_consultation_slot=False,
-        )
-    )
-    activities.append(
-        Activity(
-            title="Тест-драйв",
-            day=2,
-            start_time=day2_slot1_start,
-            end_time=day2_slot1_end,
-            capacity=20,
-            description="Спробуйте автомобіль на тестовому маршруті разом з інструктором.",
-            speaker_name=None,
-            speaker_social_url=None,
-            location_text="Зона тест-драйву",  # TODO location
-            exclusive_group_id="day2_slot1",
-            requires_confirmation=True,
-            is_consultation_slot=False,
-        )
-    )
+    activities.extend(_kerastase_slots(1))
 
     # ------------------------------------------------------------------
-    # Day 2, 12:00-13:00 — exclusive group "day2_slot2"
+    # Day 1  17:00-18:00  Garden Therapy
     # ------------------------------------------------------------------
-    day2_slot2_start = _dt(2, 12, 0)
-    day2_slot2_end = _dt(2, 13, 0)
-
-    activities.append(
-        Activity(
-            title="Sound healing",
-            day=2,
-            start_time=day2_slot2_start,
-            end_time=day2_slot2_end,
-            capacity=20,
-            description="Звукова медитація зі співочими чашами для глибокого розслаблення.",
-            speaker_name=None,
-            speaker_social_url=None,
-            location_text="Зала для звукових практик",  # TODO location
-            exclusive_group_id="day2_slot2",
-            requires_confirmation=True,
-            is_consultation_slot=False,
-        )
-    )
-    activities.append(
-        Activity(
-            title="Тест-драйв",
-            day=2,
-            start_time=day2_slot2_start,
-            end_time=day2_slot2_end,
-            capacity=20,
-            description="Спробуйте автомобіль на тестовому маршруті разом з інструктором.",
-            speaker_name=None,
-            speaker_social_url=None,
-            location_text="Зона тест-драйву",  # TODO location
-            exclusive_group_id="day2_slot2",
-            requires_confirmation=True,
-            is_consultation_slot=False,
-        )
-    )
+    activities.append(Activity(
+        title='Garden Therapy із Сонею Солтес',
+        day=1,
+        start_time=_dt(1, 17, 0),
+        end_time=_dt(1, 18, 0),
+        capacity=60,
+        description="Тактильна сесія взаємодії з рослинами з стилісткою та ентузіасткою гарден-терапії Софією Солтес.",
+        speaker_name="Софія Солтес",
+        speaker_social_url=None,
+        location_text="Edem Garden",
+        exclusive_group_id=None,
+        requires_confirmation=True,
+        is_consultation_slot=False,
+        booking_opens_at=None,
+    ))
 
     # ------------------------------------------------------------------
-    # Day 2, 16:00-19:00 — Anna Barinova consultation slots
+    # Day 1  Consultation slots (16:20-18:40, opens 15:30)
     # ------------------------------------------------------------------
     activities.extend(_consultation_slots())
+
+    # ------------------------------------------------------------------
+    # Day 2  11:30-12:30 block  (group d2_slot1)
+    # ------------------------------------------------------------------
+    activities.extend(_testdrive_slots(2, [(11, 30), (11, 50), (12, 10)], "d2_slot1"))
+
+    activities.append(Activity(
+        title="Клас барре з Катериною Кухар",
+        day=2,
+        start_time=_dt(2, 11, 30),
+        end_time=_dt(2, 12, 30),
+        capacity=20,
+        description="Клас барре із прима-балериною Катериною Кухар для гнучкості, постави та тонусу.",
+        speaker_name="Катерина Кухар",
+        speaker_social_url=None,
+        location_text="Понтон",
+        exclusive_group_id="d2_slot1",
+        requires_confirmation=True,
+        is_consultation_slot=False,
+        booking_opens_at=None,
+    ))
+
+    # ------------------------------------------------------------------
+    # Day 2  12:30-13:30 block  (group d2_slot2)
+    # ------------------------------------------------------------------
+    activities.extend(_testdrive_slots(2, [(12, 30), (12, 50), (13, 10)], "d2_slot2"))
+
+    activities.append(Activity(
+        title="Практика Sound Healing",
+        day=2,
+        start_time=_dt(2, 12, 30),
+        end_time=_dt(2, 13, 30),
+        capacity=20,
+        description="Звукова медитація зі співочими чашами для глибокого розслаблення від Divya Svara.",
+        speaker_name="Divya Svara",
+        speaker_social_url=None,
+        location_text="Лекторій, 5-й поверх",
+        exclusive_group_id="d2_slot2",
+        requires_confirmation=True,
+        is_consultation_slot=False,
+        booking_opens_at=None,
+    ))
+
+    # ------------------------------------------------------------------
+    # Day 2  Kérastase slots (12:00-15:40, every 20 min)
+    # ------------------------------------------------------------------
+    activities.extend(_kerastase_slots(2))
 
     return activities
 
 
 async def seed() -> None:
-    """Insert the seed activities, refusing to run if any already exist."""
     await init_db()
 
     async with async_session() as session:

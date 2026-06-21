@@ -2,26 +2,26 @@
 Handler for the "✍️ Записатись" booking flow.
 
 Navigation:
-  "✍️ Записатись"            -> day picker
-  bookday:{day}               -> slot picker for that day
-  bookslot:{day}:{anchor_id}  -> activity picker for that slot
-  bookconsult:{day}           -> consultation 15-min slot picker
-  bookact:{activity_id}       -> show booking confirmation card
-  bookconfirm:{activity_id}   -> run checks + create booking
-  bookwait:{activity_id}      -> (from a full slot) show "join waitlist?" offer
-  bookwaitjoin:{activity_id}  -> actually join the waitlist
-  bookcancel:{booking_id}     -> cancel a conflicting booking (then re-offer)
-  bookeditdata                -> jump to profile editing
-  bookabort                   -> dismiss the current prompt
-  bookdays                    -> back to day picker
+  "✍️ Записатись"             -> day picker
+  bookday:{day}                -> category picker for that day
+  bookcat:{day}:{anchor_id}    -> sub-slot picker for a category
+  bookconsult:{day}            -> consultation sub-slot picker
+  bookact:{activity_id}        -> show booking confirmation card
+  bookconfirm:{activity_id}    -> run checks + create booking
+  bookwait:{activity_id}       -> show "join waitlist?" offer
+  bookwaitjoin:{activity_id}   -> actually join the waitlist
+  bookcancel:{booking_id}      -> cancel a conflicting booking
+  bookeditdata                 -> jump to profile editing
+  bookabort                    -> dismiss the current prompt
+  bookdays                     -> back to day picker
   wlconfirm:{entry_id} / wldecline:{entry_id} -> respond to a waitlist offer
 
-Booking actions live in services.booking_actions; this module is the
-Telegram glue (rendering + routing + notifications).
+Booking actions live in services.booking_actions.
 """
 
 import html
 import logging
+from datetime import timedelta
 
 from aiogram import Bot, F, Router
 from aiogram.types import CallbackQuery, Message
@@ -31,7 +31,6 @@ from config import settings
 from db.crud.activities import (
     get_activities_for_day,
     get_activity_by_id,
-    get_activities_in_slot,
     get_consultation_slots,
 )
 from db.crud.bookings import get_booking_by_id
@@ -39,8 +38,9 @@ from db.crud.users import get_user_by_tg_id
 from db.crud.waitlist import get_waitlist_entry
 from db.models import Waitlist
 from keyboards.booking import (
-    activity_picker_keyboard,
+    back_only_keyboard,
     booked_ok_keyboard,
+    category_picker_keyboard,
     conflict_cancelled_keyboard,
     confirm_booking_keyboard,
     conflict_keyboard,
@@ -48,12 +48,18 @@ from keyboards.booking import (
     day_label,
     day_picker_keyboard,
     full_offer_waitlist_keyboard,
-    slot_picker_keyboard,
+    subslot_picker_keyboard,
     waitlist_offer_keyboard,
 )
 from keyboards.main_menu import MENU_BOOK
 from services import booking_actions as actions
-from services.booking_service import Slot, group_into_slots, render_activity_picker, render_slot_picker
+from services.booking_service import (
+    CategoryGroup,
+    _category_name,
+    group_into_categories,
+    render_category_picker,
+    render_subslot_picker,
+)
 from texts import booking as t
 from utils.time_utils import display_title, format_time_range
 
@@ -77,7 +83,7 @@ async def back_to_day_picker(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(F.data.startswith("bookday:"))
-async def show_slot_picker(callback: CallbackQuery, session: AsyncSession) -> None:
+async def show_category_picker(callback: CallbackQuery, session: AsyncSession) -> None:
     day = int(callback.data.split(":")[1])
 
     activities = await get_activities_for_day(session, day)
@@ -86,14 +92,14 @@ async def show_slot_picker(callback: CallbackQuery, session: AsyncSession) -> No
         await callback.answer()
         return
 
-    slots = group_into_slots(activities)
-    text = render_slot_picker(day, day_label(day), slots)
-    await callback.message.edit_text(text, reply_markup=slot_picker_keyboard(day, slots))
+    categories = group_into_categories(activities)
+    text = render_category_picker(day, day_label(day))
+    await callback.message.edit_text(text, reply_markup=category_picker_keyboard(day, categories))
     await callback.answer()
 
 
-@router.callback_query(F.data.startswith("bookslot:"))
-async def show_activity_picker(callback: CallbackQuery, session: AsyncSession) -> None:
+@router.callback_query(F.data.startswith("bookcat:"))
+async def show_subslot_picker(callback: CallbackQuery, session: AsyncSession) -> None:
     _, day_str, anchor_id_str = callback.data.split(":")
     day, anchor_id = int(day_str), int(anchor_id_str)
 
@@ -102,11 +108,21 @@ async def show_activity_picker(callback: CallbackQuery, session: AsyncSession) -
         await callback.answer(t.NO_ACTIVITIES_FOR_DAY, show_alert=True)
         return
 
-    slot_activities = await get_activities_in_slot(session, day, anchor.start_time, anchor.end_time)
-    slot = Slot(anchor.start_time, anchor.end_time, slot_activities, is_consultation=False)
+    # Find all activities for the day that share this category name.
+    cat_name = _category_name(anchor.title)
+    all_day = await get_activities_for_day(session, day)
+    cat_activities = [
+        (a, b) for a, b in all_day
+        if not a.is_consultation_slot and _category_name(a.title) == cat_name
+    ]
 
-    text = render_activity_picker(slot)
-    await callback.message.edit_text(text, reply_markup=activity_picker_keyboard(day, slot))
+    if not cat_activities:
+        await callback.answer(t.NO_ACTIVITIES_FOR_DAY, show_alert=True)
+        return
+
+    cat = CategoryGroup(name=cat_name, activities=cat_activities)
+    text = render_subslot_picker(cat)
+    await callback.message.edit_text(text, reply_markup=subslot_picker_keyboard(day, cat))
     await callback.answer()
 
 
@@ -125,7 +141,7 @@ async def show_consultation_picker(callback: CallbackQuery, session: AsyncSessio
     time_range = format_time_range(first_a.start_time, last_a.end_time)
 
     if any_free:
-        text = t.CONSULTATION_PICKER_HEADER.format(time_range=time_range)
+        text = t.CONSULTATION_PICKER_HEADER
     else:
         text = t.CONSULTATION_NONE_FREE
 
@@ -161,14 +177,10 @@ async def show_confirm_card(callback: CallbackQuery, session: AsyncSession) -> N
 
 
 def _back_cb(activity) -> str:
-    """
-    Callback that returns the user to the screen they came from for this
-    activity: the consultation slot picker for consultation slots, or the
-    activity picker for that slot otherwise.
-    """
+    """Back callback from the confirm card: consultation picker or sub-slot picker."""
     if activity.is_consultation_slot:
         return f"bookconsult:{activity.day}"
-    return f"bookslot:{activity.day}:{activity.id}"
+    return f"bookcat:{activity.day}:{activity.id}"
 
 
 @router.callback_query(F.data == "bookabort")
@@ -194,11 +206,38 @@ async def edit_data_from_booking(callback: CallbackQuery, session: AsyncSession)
 @router.callback_query(F.data.startswith("bookconfirm:"))
 async def confirm_booking(callback: CallbackQuery, session: AsyncSession) -> None:
     """Run all checks and create the booking, rendering the appropriate outcome."""
+    from datetime import datetime, timezone
+
     activity_id = int(callback.data.split(":")[1])
     user = await get_user_by_tg_id(session, callback.from_user.id)
     if user is None:
         await callback.answer(t.BOOKING_NOT_FOUND, show_alert=True)
         return
+
+    # Check booking window before running business logic.
+    activity_pre = await get_activity_by_id(session, activity_id)
+    if activity_pre is not None:
+        now_utc = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=settings.clock_offset_minutes)
+
+        if activity_pre.start_time <= now_utc:
+            await callback.message.edit_text(
+                t.EVENT_ALREADY_STARTED,
+                reply_markup=back_only_keyboard(_back_cb(activity_pre)),
+            )
+            await callback.answer()
+            return
+
+        if activity_pre.booking_opens_at is not None and now_utc < activity_pre.booking_opens_at:
+            from zoneinfo import ZoneInfo
+            opens_local = activity_pre.booking_opens_at.replace(
+                tzinfo=timezone.utc
+            ).astimezone(ZoneInfo(settings.event_timezone))
+            await callback.message.edit_text(
+                t.BOOKING_NOT_OPEN_YET.format(opens_at=opens_local.strftime("%H:%M")),
+                reply_markup=back_only_keyboard(_back_cb(activity_pre)),
+            )
+            await callback.answer()
+            return
 
     result = await actions.try_create_booking(session, user.id, activity_id)
     activity = await get_activity_by_id(session, activity_id)
@@ -235,6 +274,18 @@ async def confirm_booking(callback: CallbackQuery, session: AsyncSession) -> Non
         else:
             await callback.message.edit_text(
                 t.CONFLICT_FOUND.format(
+                    conflict_title=html.escape(display_title(ca)),
+                    conflict_time=format_time_range(ca.start_time, ca.end_time),
+                ),
+                reply_markup=conflict_keyboard(result.conflict_booking.id, display_title(ca), back_cb, activity_id),
+            )
+    elif result.status == actions.OUTCOME_EXCLUSIVE_GROUP_CONFLICT:
+        ca = result.conflict_activity
+        if ca is None:
+            await callback.message.edit_text(t.BOOKING_NOT_FOUND)
+        else:
+            await callback.message.edit_text(
+                t.EXCLUSIVE_GROUP_CONFLICT_FOUND.format(
                     conflict_title=html.escape(display_title(ca)),
                     conflict_time=format_time_range(ca.start_time, ca.end_time),
                 ),
@@ -311,11 +362,17 @@ async def offer_waitlist(callback: CallbackQuery, session: AsyncSession) -> None
 
 @router.callback_query(F.data.startswith("bookwaitjoin:"))
 async def join_waitlist(callback: CallbackQuery, session: AsyncSession) -> None:
+    from datetime import datetime, timezone
     activity_id = int(callback.data.split(":")[1])
     user = await get_user_by_tg_id(session, callback.from_user.id)
     activity = await get_activity_by_id(session, activity_id)
     if user is None or activity is None:
         await callback.answer(t.BOOKING_NOT_FOUND, show_alert=True)
+        return
+
+    now_utc = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=settings.clock_offset_minutes)
+    if activity.start_time <= now_utc:
+        await callback.answer(t.EVENT_ALREADY_STARTED, show_alert=True)
         return
 
     result = await actions.try_join_waitlist(session, user.id, activity_id)
@@ -356,7 +413,7 @@ async def join_waitlist(callback: CallbackQuery, session: AsyncSession) -> None:
 # ---------------------------------------------------------------------------
 
 @router.callback_query(F.data.startswith("wlconfirm:"))
-async def waitlist_confirm(callback: CallbackQuery, session: AsyncSession) -> None:
+async def waitlist_confirm(callback: CallbackQuery, session: AsyncSession, bot: Bot) -> None:
     entry_id = int(callback.data.split(":")[1])
     entry = await _get_offered_entry(session, entry_id)
     if entry is None:

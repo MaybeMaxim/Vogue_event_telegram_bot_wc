@@ -40,6 +40,15 @@ router = Router(name="registration_start")
 
 
 # ---------------------------------------------------------------------------
+# /myid — available to anyone, no registration required
+# ---------------------------------------------------------------------------
+
+@router.message(Command("myid"))
+async def cmd_myid(message: Message) -> None:
+    await message.answer(f"🪪 Ваш Telegram ID: <code>{message.from_user.id}</code>")
+
+
+# ---------------------------------------------------------------------------
 # /start
 # ---------------------------------------------------------------------------
 

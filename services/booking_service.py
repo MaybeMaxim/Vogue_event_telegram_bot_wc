@@ -1,146 +1,118 @@
 """
 Booking drill-down logic for "✍️ Записатись".
 
-Navigation model (Option A, two-level drill-down):
-  pick day -> pick time slot -> pick activity within that slot
+Navigation model (category-based, two-level drill-down):
+  pick day -> pick activity category -> pick sub-slot within that category
 
-This module groups a day's activities into "slots" (one per distinct
-(start_time, end_time) window) for the slot-picker screen, and renders
-the per-slot activity list for the activity-picker screen.
+A "category" is a logical group of activities that the user thinks of as
+one thing — e.g. "Тест-драйв MINI Countryman" collapses 6 individual
+20-minute sub-slots from two different exclusive groups into one button.
 
-The Barinova consultation block is treated as ONE slot at this level
-(16:00-19:00); tapping it leads into the per-consultation-slot picker
-(built with the consultation booking flow).
-
-Actual booking ACTIONS (conflict/limit/capacity checks, creating a
-Booking) are added in the booking action step -- this module is just
-the browse/drill-down structure plus rendering.
+Actual booking ACTIONS live in services.booking_actions.
 """
 
 import html
+import re
 from collections import OrderedDict
 from dataclasses import dataclass
-from datetime import datetime
 
 from db.models import Activity
 from texts import booking as t
 from utils.status_emoji import seats_free, seats_text, status_emoji
-from utils.time_utils import display_title, format_time_range
+from utils.time_utils import format_time, format_time_range
+
+
+def _category_name(title: str) -> str:
+    """Strip embedded '(HH:MM-HH:MM)' suffix to get the logical category name."""
+    return re.sub(r"\s*\(\d{1,2}:\d{2}-\d{1,2}:\d{2}\)\s*$", "", title).strip()
 
 
 @dataclass
-class Slot:
-    """One bookable time window on a day, with the activities it contains."""
+class CategoryGroup:
+    """All sub-slots that belong to one logical activity category."""
 
-    start_time: datetime
-    end_time: datetime
+    name: str
     activities: list[tuple[Activity, int]]
-    is_consultation: bool
+    is_consultation: bool = False
 
     @property
     def total_capacity(self) -> int:
         return sum(a.capacity for a, _ in self.activities)
 
     @property
-    def total_free(self) -> int:
-        return sum(seats_free(a.capacity, b) for a, b in self.activities)
+    def total_booked(self) -> int:
+        return sum(b for _, b in self.activities)
 
     @property
-    def is_exclusive(self) -> bool:
-        """True if the activities here are mutually-exclusive alternatives."""
-        if len(self.activities) < 2:
-            return False
-        group_ids = {a.exclusive_group_id for a, _ in self.activities}
-        return len(group_ids) == 1 and None not in group_ids
+    def total_free(self) -> int:
+        return max(self.total_capacity - self.total_booked, 0)
+
+    @property
+    def anchor_id(self) -> int:
+        return self.activities[0][0].id
+
+    @property
+    def first_activity(self) -> Activity:
+        return self.activities[0][0]
 
 
-def group_into_slots(activities: list[tuple[Activity, int]]) -> list[Slot]:
+def group_into_categories(activities: list[tuple[Activity, int]]) -> list[CategoryGroup]:
     """
-    Group a day's (Activity, booked) tuples into Slots.
+    Group a day's activities into logical CategoryGroups.
 
-    All consultation slots collapse into a single Slot spanning the
-    whole consultation window; regular activities group by exact
-    (start_time, end_time).
+    Consultation slots collapse into one category.  Everything else groups by
+    _category_name(title), so e.g. test-drive 12:00/12:20/12:40/13:00/…
+    from two different exclusive groups become one "Тест-драйв" category.
+
+    Result sorted by earliest start_time.
     """
     regular = [(a, b) for a, b in activities if not a.is_consultation_slot]
     consultations = [(a, b) for a, b in activities if a.is_consultation_slot]
 
-    slots: list[Slot] = []
+    cats: "OrderedDict[str, list[tuple[Activity, int]]]" = OrderedDict()
+    for a, b in regular:
+        cats.setdefault(_category_name(a.title), []).append((a, b))
 
-    grouped: "OrderedDict[tuple, list[tuple[Activity, int]]]" = OrderedDict()
-    for activity, booked in regular:
-        grouped.setdefault((activity.start_time, activity.end_time), []).append((activity, booked))
-
-    for (start, end), items in grouped.items():
-        slots.append(Slot(start_time=start, end_time=end, activities=items, is_consultation=False))
+    groups: list[CategoryGroup] = [
+        CategoryGroup(name=name, activities=items)
+        for name, items in cats.items()
+    ]
 
     if consultations:
-        start = consultations[0][0].start_time
-        end = consultations[-1][0].end_time
-        slots.append(Slot(start_time=start, end_time=end, activities=consultations, is_consultation=True))
+        groups.append(CategoryGroup(
+            name="Консультація Анни Баринової",
+            activities=consultations,
+            is_consultation=True,
+        ))
 
-    slots.sort(key=lambda s: s.start_time)
-    return slots
+    groups.sort(key=lambda g: g.first_activity.start_time)
+    return groups
 
 
-def render_slot_picker(day: int, date_label: str, slots: list[Slot]) -> str:
+def render_category_picker(day: int, date_label: str) -> str:
+    return t.CATEGORY_PICKER_INTRO.format(day=day, date=date_label)
+
+
+def render_subslot_picker(cat: CategoryGroup) -> str:
     """
-    Build the slot-picker overview: each time slot listed with the
-    activities it contains, so the user sees what's in each block before
-    tapping a time button.
+    Text for the sub-slot screen: activity name, location, limit, optional speaker,
+    sub-slot times list, and prompt.
     """
-    blocks = [t.SLOT_PICKER_INTRO.format(day=day, date=date_label)]
+    first = cat.first_activity
 
-    for slot in slots:
-        time_range = format_time_range(slot.start_time, slot.end_time)
-        names = " · ".join(html.escape(a.title) for a, _ in slot.activities)
-        if slot.is_consultation:
-            names = "Консультації Анни Барінової"
-        blocks.append(t.SLOT_OVERVIEW_BLOCK.format(time_range=time_range, names=names))
+    lines: list[str] = [f"<b>{html.escape(cat.name)}</b>"]
 
-    blocks.append(t.SLOT_PICKER_PROMPT)
-    return "\n\n".join(blocks)
+    if first.location_text:
+        lines.append(f"📍 {html.escape(first.location_text)}")
 
-
-def slot_button_label(slot: Slot) -> str:
-    """Label for a slot button in the slot picker, e.g. '🕒 11:00-12:00 · 🟢 є місця'."""
-    time_range = format_time_range(slot.start_time, slot.end_time)
-    dot = status_emoji(slot.total_capacity, slot.total_capacity - slot.total_free)
-    status = "є місця" if slot.total_free > 0 else "немає місць"
-    return f"🕒 {time_range} · {dot} {status}"
-
-
-def render_activity_picker(slot: Slot) -> str:
-    """Build the text for the activity-picker screen (one slot's options)."""
-    time_range = format_time_range(slot.start_time, slot.end_time)
-
-    lines = [t.ACTIVITY_PICKER_HEADER.format(time_range=time_range)]
-
-    if slot.is_exclusive:
-        lines.append(t.ACTIVITY_PICKER_EXCLUSIVE_HINT)
+    if first.booking_opens_at:
+        lines.append(t.SUBSLOT_OPENS_AT.format(time=format_time(first.booking_opens_at)))
 
     lines.append("")
 
-    for activity, booked in slot.activities:
-        lines.append(
-            t.ACTIVITY_PICKER_LINE.format(
-                dot=status_emoji(activity.capacity, booked),
-                title=html.escape(display_title(activity)),
-                seats=seats_text(activity.capacity, booked),
-            )
-        )
-        if activity.speaker_name:
-            lines.append(t.ACTIVITY_PICKER_SPEAKER.format(speaker_name=_speaker_display(activity)))
-        if activity.description:
-            lines.append(t.ACTIVITY_PICKER_DESC.format(description=html.escape(activity.description)))
+    if len(cat.activities) > 1:
+        lines.append(t.SUBSLOT_PICK_TIME_PROMPT)
+    else:
+        lines.append(t.SUBSLOT_SINGLE_PROMPT)
 
     return "\n".join(lines)
-
-
-def _speaker_display(activity: Activity) -> str:
-    """Render the speaker name, as a clickable link if a social URL is set."""
-    name = html.escape(activity.speaker_name)
-    if activity.speaker_social_url:
-        url = html.escape(activity.speaker_social_url)
-        return f'<a href="{url}">{name}</a> ↗'
-    return name

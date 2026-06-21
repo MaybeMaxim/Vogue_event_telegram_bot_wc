@@ -1,12 +1,10 @@
 """
 Handler for the 💬 Підтримка (support) section.
 
-Two options:
-  - Write to organizers: shows the direct contact link
+Options:
+  - Contact organizers: shows Veronika's number + FSM "send message"
+  - Ask sexologist: redirects to the anonymous Q&A flow (question.py)
   - Report a mistake: free text -> forwarded to the support chat
-
-Submissions are not anonymous — they include the sender so the team
-can follow up.
 """
 
 import html
@@ -16,15 +14,28 @@ from aiogram import Bot, F, Router
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import settings
+from db.crud.support import add_support_message
 from keyboards.main_menu import MENU_BUTTONS, MENU_SUPPORT
 from keyboards.support import cancel_keyboard, organizer_keyboard, support_menu_keyboard
+from keyboards.question import question_cancel_keyboard
+from states.question import QuestionFlow
 from states.support import Support
 from texts import support as t
+from texts import question as tq
 
 router = Router(name="support")
 logger = logging.getLogger(__name__)
+
+
+def _mark_sheets_dirty() -> None:
+    try:
+        from services.sheets_service import mark_dirty
+        mark_dirty()
+    except Exception:
+        pass
 
 
 @router.message(F.text == MENU_SUPPORT)
@@ -50,9 +61,15 @@ async def close_support(callback: CallbackQuery, state: FSMContext) -> None:
     await callback.answer()
 
 
+@router.callback_query(F.data == "support:sexologist")
+async def start_sexologist_question(callback: CallbackQuery, state: FSMContext) -> None:
+    await state.set_state(QuestionFlow.waiting_for_text)
+    await callback.message.edit_text(tq.INTRO, reply_markup=question_cancel_keyboard())
+    await callback.answer()
+
+
 @router.callback_query(F.data == "support:organizer")
 async def contact_organizer(callback: CallbackQuery) -> None:
-    """Show the organizer's direct contact with a back button."""
     try:
         await callback.message.edit_text(
             t.CONTACT_ORGANIZER.format(contact=html.escape(settings.organizer_contact)),
@@ -61,6 +78,24 @@ async def contact_organizer(callback: CallbackQuery) -> None:
     except TelegramBadRequest:
         pass
     await callback.answer()
+
+
+@router.callback_query(F.data == "support:org_message")
+async def start_org_message(callback: CallbackQuery, state: FSMContext) -> None:
+    await state.set_state(Support.waiting_for_org_message)
+    await callback.message.edit_text(t.ORG_MESSAGE_PROMPT, reply_markup=cancel_keyboard())
+    await callback.answer()
+
+
+@router.message(Support.waiting_for_org_message, F.text & ~F.text.in_(MENU_BUTTONS))
+async def receive_org_message(message: Message, state: FSMContext, bot: Bot, session: AsyncSession) -> None:
+    await state.clear()
+    user = message.from_user
+    await add_support_message(session, user.id, user.full_name, user.username, "org", message.text)
+    _mark_sheets_dirty()
+    delivered = await _forward(bot, message, t.FWD_ORG)
+    await message.answer(t.ORG_MESSAGE_SENT if delivered else t.SUBMISSION_FAILED)
+
 
 
 @router.callback_query(F.data == "support:bug")
@@ -81,18 +116,16 @@ async def cancel(callback: CallbackQuery, state: FSMContext) -> None:
 
 
 @router.message(Support.waiting_for_bug, F.text & ~F.text.in_(MENU_BUTTONS))
-async def receive_bug(message: Message, state: FSMContext, bot: Bot) -> None:
-    """Forward a bug report to the support chat."""
+async def receive_bug(message: Message, state: FSMContext, bot: Bot, session: AsyncSession) -> None:
     await state.clear()
+    user = message.from_user
+    await add_support_message(session, user.id, user.full_name, user.username, "bug", message.text)
+    _mark_sheets_dirty()
     delivered = await _forward(bot, message, t.FWD_BUG)
     await message.answer(t.BUG_SENT if delivered else t.SUBMISSION_FAILED)
 
 
 async def _forward(bot: Bot, message: Message, template: str) -> bool:
-    """
-    Send a formatted submission to the support chat.
-    Returns True on success, False if no chat is configured or sending fails.
-    """
     chat_id = settings.effective_support_chat_id
     if chat_id is None:
         logger.warning("No support chat configured; submission dropped.")

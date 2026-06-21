@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -60,3 +60,9 @@ async def update_user_field(session: AsyncSession, tg_id: int, field: str, value
     await session.commit()
     await session.refresh(user)
     return user
+
+
+async def all_user_tg_ids(session: AsyncSession) -> list[int]:
+    """Return tg_id for every registered user."""
+    rows = (await session.execute(select(User.tg_id))).all()
+    return [row[0] for row in rows]

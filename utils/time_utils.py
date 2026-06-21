@@ -42,15 +42,6 @@ def format_time_range(start: datetime, end: datetime) -> str:
 
 
 def display_title(activity) -> str:
-    """
-    Return a clean display title for an activity.
-
-    Consultation slots are seeded with the time embedded in their title
-    (e.g. "Консультація Анни Барінової (18:00-18:15)"). Since the time
-    is always shown separately as 🕒 HH:MM-HH:MM, we strip the trailing
-    parenthesised time so it doesn't appear twice.
-    """
-    if not activity.is_consultation_slot:
-        return activity.title
+    """Strip the embedded '(HH:MM-HH:MM)' time suffix from any activity title."""
     import re
     return re.sub(r"\s*\(\d{1,2}:\d{2}-\d{1,2}:\d{2}\)\s*$", "", activity.title).strip()

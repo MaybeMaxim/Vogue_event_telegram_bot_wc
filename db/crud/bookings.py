@@ -7,7 +7,7 @@ booking-vs-cancel race are guarded by a per-activity lock at the service
 layer (services.booking_service) — these functions are the raw queries.
 """
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.models import Activity, Booking, BookingStatus
@@ -61,6 +61,24 @@ async def find_time_conflict(
             Booking.user_id == user_id,
             Booking.status.in_(_ACTIVE_STATUSES),
             and_(Activity.start_time < end_time, Activity.end_time > start_time),
+        )
+        .limit(1)
+    )
+    return (await session.execute(stmt)).scalar_one_or_none()
+
+
+async def get_booking_in_exclusive_group(
+    session: AsyncSession, user_id: int, exclusive_group_id: str, exclude_activity_id: int
+) -> Booking | None:
+    """Return any active booking the user has in the given exclusive group (except the target activity)."""
+    stmt = (
+        select(Booking)
+        .join(Activity, Booking.activity_id == Activity.id)
+        .where(
+            Booking.user_id == user_id,
+            Booking.status.in_(_ACTIVE_STATUSES),
+            Activity.exclusive_group_id == exclusive_group_id,
+            Booking.activity_id != exclude_activity_id,
         )
         .limit(1)
     )
@@ -123,12 +141,9 @@ async def list_user_bookings(session: AsyncSession, user_id: int) -> list[tuple[
 
 async def bookings_due_for_reminder(session: AsyncSession, now, threshold) -> list[tuple[Booking, Activity]]:
     """
-    CONFIRMED bookings for confirmation-EXEMPT activities whose start is
-    within the reminder window and that haven't been reminded yet.
-
-    (Activities that require confirmation get their location via the
-    confirmation request instead, so they're excluded here to avoid
-    double-messaging.)
+    CONFIRMED bookings for ALL bookable activities whose start is within
+    the reminder window and that haven't been reminded yet.
+    Excludes "ЗБІР ГОСТЕЙ" (walk-in registration event, no booking needed).
     """
     stmt = (
         select(Booking, Activity)
@@ -136,9 +151,9 @@ async def bookings_due_for_reminder(session: AsyncSession, now, threshold) -> li
         .where(
             Booking.status == BookingStatus.CONFIRMED,
             Booking.reminder_sent.is_(False),
-            Activity.requires_confirmation.is_(False),
             Activity.start_time > now,
             Activity.start_time <= threshold,
+            ~Activity.title.ilike("ЗБІР ГОСТЕЙ%"),
         )
     )
     return [(b, a) for b, a in (await session.execute(stmt)).all()]
@@ -163,7 +178,7 @@ async def bookings_due_for_confirmation(session: AsyncSession, now, threshold) -
     return [(b, a) for b, a in (await session.execute(stmt)).all()]
 
 
-async def bookings_due_for_release(session: AsyncSession, threshold) -> list[tuple[Booking, Activity]]:
+async def bookings_due_for_release(session: AsyncSession, now, threshold) -> list[tuple[Booking, Activity]]:
     """
     PENDING_CONFIRMATION bookings still unconfirmed whose start is within
     the auto-release window — these become no-shows and free their seats.
@@ -173,6 +188,7 @@ async def bookings_due_for_release(session: AsyncSession, threshold) -> list[tup
         .join(Activity, Booking.activity_id == Activity.id)
         .where(
             Booking.status == BookingStatus.PENDING_CONFIRMATION,
+            Activity.start_time > now,
             Activity.start_time <= threshold,
         )
     )
@@ -185,10 +201,9 @@ async def mark_reminder_sent(session: AsyncSession, booking: Booking) -> None:
 
 
 async def mark_confirmation_requested(session: AsyncSession, booking: Booking) -> None:
-    """Move to PENDING_CONFIRMATION and flag both sent markers."""
+    """Move to PENDING_CONFIRMATION and mark confirmation sent."""
     booking.status = BookingStatus.PENDING_CONFIRMATION
     booking.confirmation_sent = True
-    booking.reminder_sent = True  # confirmation request doubles as the reminder
     await session.commit()
 
 
@@ -205,3 +220,45 @@ async def mark_no_show(session: AsyncSession, booking: Booking) -> None:
     """Unconfirmed in time -> NO_SHOW (frees the seat)."""
     booking.status = BookingStatus.NO_SHOW
     await session.commit()
+
+
+async def active_booking_user_ids(session: AsyncSession, activity_id: int) -> set[int]:
+    """Return the set of user.id values with an active booking for this activity."""
+    stmt = (
+        select(Booking.user_id)
+        .where(
+            Booking.activity_id == activity_id,
+            Booking.status.in_(_ACTIVE_STATUSES),
+        )
+    )
+    rows = (await session.execute(stmt)).all()
+    return {row[0] for row in rows}
+
+
+async def user_ids_busy_during(session: AsyncSession, start_time, end_time) -> set[int]:
+    """Return user.id values that have an active booking overlapping [start_time, end_time)."""
+    stmt = (
+        select(Booking.user_id)
+        .join(Activity, Activity.id == Booking.activity_id)
+        .where(
+            Booking.status.in_(_ACTIVE_STATUSES),
+            Activity.start_time < end_time,
+            Activity.end_time > start_time,
+        )
+    )
+    rows = (await session.execute(stmt)).all()
+    return {row[0] for row in rows}
+
+
+async def user_ids_booked_in_group(session: AsyncSession, exclusive_group_id: str) -> set[int]:
+    """Return user.id values with an active booking for any activity in the exclusive group."""
+    stmt = (
+        select(Booking.user_id)
+        .join(Activity, Activity.id == Booking.activity_id)
+        .where(
+            Booking.status.in_(_ACTIVE_STATUSES),
+            Activity.exclusive_group_id == exclusive_group_id,
+        )
+    )
+    rows = (await session.execute(stmt)).all()
+    return {row[0] for row in rows}
