@@ -272,7 +272,9 @@ async def offer_next_in_waitlist(session: AsyncSession, activity_id: int) -> Wai
         # Store as naive UTC to match how activity times and the ticker's
         # `now` are represented (SQLite has no real tz-aware type).
         expires_at = (
-            datetime.now(timezone.utc) + timedelta(minutes=settings.waitlist_confirm_minutes)
+            datetime.now(timezone.utc)
+            + timedelta(minutes=settings.clock_offset_minutes)
+            + timedelta(minutes=settings.waitlist_confirm_minutes)
         ).replace(tzinfo=None)
         await waitlist_crud.mark_offered(session, entry, expires_at)
         return entry

@@ -102,12 +102,15 @@ async def _process_reminders(session, bot: Bot, now: datetime) -> set[int]:
     just_reminded: set[int] = set()
 
     reminder_window = timedelta(minutes=settings.reminder_minutes)
+    clock_offset = timedelta(minutes=settings.clock_offset_minutes)
     # Group by (user_id, start_time) so simultaneous activities → one message.
     # Skip bookings made after the reminder window opened (booked within T-30).
     by_user_start: dict[tuple, list] = defaultdict(list)
     for booking, activity in due:
         window_opened_at = _naive_utc(activity.start_time) - reminder_window
-        if _naive_utc(booking.created_at) >= window_opened_at:
+        # Apply clock offset so created_at is in virtual time, matching the activity's clock.
+        virtual_created_at = _naive_utc(booking.created_at) + clock_offset
+        if virtual_created_at >= window_opened_at:
             await bookings_crud.mark_reminder_sent(session, booking)
             continue
         by_user_start[(booking.user_id, activity.start_time)].append((booking, activity))
