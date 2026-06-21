@@ -78,7 +78,6 @@ async def tick(bot: Bot) -> None:
 
     async with async_session() as session:
         just_reminded = await _process_reminders(session, bot, now)
-        await _process_reminder_broadcast(session, bot, now)
         await _process_no_shows(session, bot, now, skip_ids=just_reminded)
         await _process_free_seat_broadcast(session, bot, now)
         await _process_opens_broadcast(session, bot, now)
