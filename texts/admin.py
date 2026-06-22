@@ -21,7 +21,7 @@ QUESTION_ITEM = "{num}. {text}\n"
 # Activity picker (shared by participants / waitlists / manual add)
 PICK_ACTIVITY = "Оберіть активність 👇"
 ACTIVITY_BTN = "Д{day} · {time} · {title}"
-CONSULT_LIST_BTN = "✨ Консультації Анни Баринової"
+CONSULT_LIST_BTN = "Консультації Анни Баринової"
 
 # Participant list
 PARTICIPANTS_HEADER = "📋 <b>{title}</b>\n🕒 {time_range}\nЗайнято: {count} з {capacity}\n"
@@ -32,7 +32,7 @@ NOT_ATTENDED_MARK = "▫️"
 TOGGLE_HINT = "\nНатисніть на гостя, щоб відмітити присутність."
 
 # Combined consultations participant list
-CONSULT_PARTICIPANTS_HEADER = "✨ <b>Консультації Анни Баринової</b>\nЗаписано слотів: {count} з {total}\n"
+CONSULT_PARTICIPANTS_HEADER = "<b>Консультації Анни Баринової</b>\nЗаписано слотів: {count} з {total}\n"
 CONSULT_PARTICIPANT_LINE = "🕒 {time} {mark} <b>{name}</b> — 📱 {phone}"
 
 # Waitlist view
