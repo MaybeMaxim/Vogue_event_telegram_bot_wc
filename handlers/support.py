@@ -94,6 +94,8 @@ async def receive_org_message(message: Message, state: FSMContext, bot: Bot, ses
     await add_support_message(session, user.id, user.full_name, user.username, "org", message.text)
     _mark_sheets_dirty()
     delivered = await _forward(bot, message, t.FWD_ORG)
+    # Also send directly to the organizer in real time.
+    await _forward_to(bot, message, t.FWD_ORG, 463806442)
     await message.answer(t.ORG_MESSAGE_SENT if delivered else t.SUBMISSION_FAILED)
 
 
@@ -148,3 +150,16 @@ async def _forward(bot: Bot, message: Message, template: str) -> bool:
     except Exception:
         logger.exception("Failed to forward support submission to chat %s", chat_id)
         return False
+
+
+async def _forward_to(bot: Bot, message: Message, template: str, chat_id: int) -> None:
+    """Send a copy of a support submission to a specific chat/user."""
+    user = message.from_user
+    user_display = html.escape(user.full_name)
+    if user.username:
+        user_display += f" (@{user.username})"
+    text = template.format(user=user_display, tg_id=user.id, text=html.escape(message.text))
+    try:
+        await bot.send_message(chat_id, text)
+    except Exception:
+        logger.exception("Failed to forward support submission to extra recipient %s", chat_id)

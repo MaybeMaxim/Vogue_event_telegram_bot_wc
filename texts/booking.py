@@ -21,7 +21,7 @@ BACK_TO_CATEGORIES_BUTTON = "⬅️ Назад до активностей"
 BACK_TO_DAYS_BUTTON = "⬅️ Обрати інший день"
 
 # Consultation slot button (leads into the per-slot consultation picker)
-CONSULTATION_SLOT_BUTTON = "🩺 {time_range} · Консультації Анни Баринової"
+CONSULTATION_SLOT_BUTTON = "✨ {time_range} · Консультації Анни Баринової"
 
 # --- Consultation slot picker ---------------------------------------------
 CONSULTATION_PICKER_HEADER = (
@@ -31,7 +31,7 @@ CONSULTATION_PICKER_HEADER = (
 CONSULTATION_SLOT_FREE = "🟢 {time}"
 CONSULTATION_SLOT_TAKEN = "🔴 {time} — зайнято (черга очікування →)"
 CONSULTATION_NONE_FREE = (
-    "🩺 <b>Консультації Анни Баринової</b>\n\n"
+    "✨ <b>Консультації Анни Баринової</b>\n\n"
     "На жаль, усі слоти наразі зайняті. "
     "Ви можете приєднатись до листа очікування на конкретний час."
 )

@@ -140,6 +140,18 @@ async def show_consultation_picker(callback: CallbackQuery, session: AsyncSessio
 
     now_utc = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=settings.clock_offset_minutes)
     slots = await get_consultation_slots(session, day)
+
+    # Check booking_opens_at on the first slot — all share the same gate.
+    if slots:
+        first_slot = slots[0][0]
+        if first_slot.booking_opens_at is not None:
+            opens_naive = first_slot.booking_opens_at.replace(tzinfo=None) if first_slot.booking_opens_at.tzinfo else first_slot.booking_opens_at
+            if now_utc < opens_naive:
+                from zoneinfo import ZoneInfo
+                opens_local = first_slot.booking_opens_at.replace(tzinfo=timezone.utc).astimezone(ZoneInfo(settings.event_timezone))
+                await callback.answer(t.BOOKING_NOT_OPEN_YET.format(opens_at=opens_local.strftime("%H:%M")), show_alert=True)
+                return
+
     slots = [(a, b) for a, b in slots if a.start_time > now_utc]
     if not slots:
         await callback.answer(t.NO_ACTIVITIES_FOR_DAY, show_alert=True)

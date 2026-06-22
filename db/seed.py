@@ -262,7 +262,7 @@ def build_seed_activities() -> list[Activity]:
         description="Звукова медитація зі співочими чашами для глибокого розслаблення від Divya Svara.",
         speaker_name="Divya Svara",
         speaker_social_url=None,
-        location_text="Лекторій, 5-й поверх",
+        location_text="Edem Garden",
         exclusive_group_id="d2_slot2",
         requires_confirmation=True,
         is_consultation_slot=False,
