@@ -62,8 +62,7 @@ ALREADY_BOOKED = "Ви вже записані на «{title}» 🙂"
 CONFLICT_FOUND = (
     "⚠️ На цей час у вас вже є запис:\n\n"
     "🗓 <b>{conflict_title}</b>\n"
-    "🕒 {conflict_time}\n\n"
-    "Не можна бути у двох місцях одночасно."
+    "🕒 {conflict_time}"
 )
 EXCLUSIVE_GROUP_CONFLICT_FOUND = (
     "⚠️ Ви вже записані на цей захід:\n\n"
@@ -212,4 +211,4 @@ WAITLIST_JOINED_WITH_CONFLICT = (
 
 NO_ACTIVITIES_FOR_DAY = "На цей день активностей не знайдено."
 ALL_ACTIVITIES_STARTED = "Усі заходи цього дня вже розпочались. Записів більше немає."
-BOOKING_NOT_OPEN_YET = "⏳ Запис відкривається о <b>{opens_at}</b>."
+BOOKING_NOT_OPEN_YET = "⏳ Запис відкривається о {opens_at}."

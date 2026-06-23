@@ -112,11 +112,11 @@ async def try_create_booking(session: AsyncSession, user_id: int, activity_id: i
             conflict_activity=conflict_activity,
         )
 
-    # Exclusive groups (e.g. Kérastase sub-slots, test-drive sub-slots):
-    # user can hold only one booking per group, even if slots don't overlap in time.
+    # Exclusive groups: block only if another booking in the group overlaps in time.
     if activity.exclusive_group_id is not None:
         group_conflict = await get_booking_in_exclusive_group(
-            session, user_id, activity.exclusive_group_id, exclude_activity_id=activity_id
+            session, user_id, activity.exclusive_group_id, exclude_activity_id=activity_id,
+            new_start=activity.start_time, new_end=activity.end_time,
         )
         if group_conflict is not None:
             group_activity = await get_activity_by_id(session, group_conflict.activity_id)

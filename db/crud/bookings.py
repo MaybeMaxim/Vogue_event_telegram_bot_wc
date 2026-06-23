@@ -68,18 +68,28 @@ async def find_time_conflict(
 
 
 async def get_booking_in_exclusive_group(
-    session: AsyncSession, user_id: int, exclusive_group_id: str, exclude_activity_id: int
+    session: AsyncSession,
+    user_id: int,
+    exclusive_group_id: str,
+    exclude_activity_id: int,
+    new_start=None,
+    new_end=None,
 ) -> Booking | None:
-    """Return any active booking the user has in the given exclusive group (except the target activity)."""
+    """Return any active booking the user has in the given exclusive group whose time overlaps
+    [new_start, new_end). If new_start/new_end are omitted, any group member is a conflict."""
+    conditions = [
+        Booking.user_id == user_id,
+        Booking.status.in_(_ACTIVE_STATUSES),
+        Activity.exclusive_group_id == exclusive_group_id,
+        Booking.activity_id != exclude_activity_id,
+    ]
+    if new_start is not None and new_end is not None:
+        conditions.append(Activity.start_time < new_end)
+        conditions.append(Activity.end_time > new_start)
     stmt = (
         select(Booking)
         .join(Activity, Booking.activity_id == Activity.id)
-        .where(
-            Booking.user_id == user_id,
-            Booking.status.in_(_ACTIVE_STATUSES),
-            Activity.exclusive_group_id == exclusive_group_id,
-            Booking.activity_id != exclude_activity_id,
-        )
+        .where(*conditions)
         .limit(1)
     )
     return (await session.execute(stmt)).scalar_one_or_none()
