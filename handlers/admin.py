@@ -239,7 +239,7 @@ async def waitlists_consult(callback: CallbackQuery, session: AsyncSession) -> N
     from db.models import WaitlistStatus
 
     consult_slots = await admin_crud.consultation_activities(session)
-    lines = [t.WAITLIST_HEADER.format(title="Консультації Анни Баринової", time_range="")]
+    lines = [t.WAITLIST_HEADER.format(title="Консультації Анни Барінової", time_range="")]
     found = False
     for activity in consult_slots:
         entries = await admin_crud.waitlist_for_activity(session, activity.id)

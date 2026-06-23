@@ -113,7 +113,7 @@ async def build_participants_workbook(session: AsyncSession) -> Path:
         first, last = consult_activities[0], consult_activities[-1]
         present = 0
 
-        sheet["A1"] = f"Консультації Анни Баринової — {format_time_range(first.start_time, last.end_time)}"
+        sheet["A1"] = f"Консультації Анни Барінової — {format_time_range(first.start_time, last.end_time)}"
         sheet["A1"].font = Font(bold=True, name="Arial", size=12)
         sheet.append([])
         sheet.append([])  # placeholder for occupancy (filled after counting)

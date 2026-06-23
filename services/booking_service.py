@@ -80,7 +80,7 @@ def group_into_categories(activities: list[tuple[Activity, int]]) -> list[Catego
 
     if consultations:
         groups.append(CategoryGroup(
-            name="Консультація Анни Баринової",
+            name="Консультація Анни Барінової",
             activities=consultations,
             is_consultation=True,
         ))

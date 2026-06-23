@@ -17,7 +17,7 @@ Day 1 (24.06):
                Wellness Walk (13:00, cap=20, зона реєстрації)
                Wellness Walk (13:30, cap=20, зона реєстрації)
   12:00-16:00  Kérastase hair-care slots (every 20 min 12:00→15:40, cap=1 each)
-  16:20-18:40  Консультації Анни Баринової (8 × 20-min, cap=1, кімн.101 1-й пов.)
+  16:20-18:40  Консультації Анни Барінової (8 × 20-min, cap=1, кімн.101 1-й пов.)
                booking_opens_at = 15:30 local
   17:00-18:00  Garden Therapy з Сонею Солтес (cap=60, Edem Garden)
 
@@ -120,13 +120,13 @@ def _consultation_slots() -> list[Activity]:
         local_start = start.replace(tzinfo=timezone.utc).astimezone(_TZ)
         local_end = end.replace(tzinfo=timezone.utc).astimezone(_TZ)
         slots.append(Activity(
-            title=f"Консультація Анни Баринової ({local_start.strftime('%H:%M')}-{local_end.strftime('%H:%M')})",
+            title=f"Консультація Анни Барінової ({local_start.strftime('%H:%M')}-{local_end.strftime('%H:%M')})",
             day=1,
             start_time=start,
             end_time=end,
             capacity=1,
-            description="Індивідуальна консультація з лікарем-хірургом Анною Бариновою.",
-            speaker_name="Анна Баринова",
+            description="Індивідуальна консультація з лікарем-хірургом Анною Баріновою.",
+            speaker_name="Анна Барінова",
             speaker_social_url=None,
             location_text="Кімната 101, 1-й поверх",
             exclusive_group_id=None,

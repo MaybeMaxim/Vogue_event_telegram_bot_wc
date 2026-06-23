@@ -41,7 +41,7 @@ _spreadsheet = None
 
 _CONTACTS_TAB = "Контакти"
 _WAITLIST_TAB = "Листи очікування"
-_CONSULT_TAB = "Консультація Анни Баринової"
+_CONSULT_TAB = "Консультація Анни Барінової"
 _QUESTIONS_TAB = "Питання сексологу"
 _ORG_MSG_TAB = "Повідомлення організаторам"
 _BUG_TAB = "Повідомлення про помилки"
@@ -237,7 +237,7 @@ async def _gather_tabs() -> list[dict]:
                     ])
                     consult_present += 1
             header_rows = [
-                [f"Консультація Анни Баринової — {format_time_range(first.start_time, last.end_time)}"],
+                [f"Консультація Анни Барінової — {format_time_range(first.start_time, last.end_time)}"],
                 [f"Зайнято слотів: {consult_present} з {len(consult_activities)}"],
                 [],
                 ["Час", "Прізвище та ім'я", "Телефон", "Email", "Статус", "Присутність"],
