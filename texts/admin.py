@@ -11,6 +11,11 @@ BTN_SEARCH = "🔍 Пошук гостя"
 BTN_ADD = "➕ Додати гостя"
 BTN_EXPORT = "📊 Експорт"
 BTN_QUESTIONS = "🤍 Питання SEX WELLNESS TALK"
+MORNING_MSG_TEXT = (
+    "Доброго ранку!\n\n"
+    "Для практики терапевтичного письма DAILY JOURNALING візьміть, будь ласка, з собою блокнот і олівець, які ви отримали вчора.\n"
+    "До зустрічі!"
+)
 BTN_BACK = "⬅️ Назад"
 BTN_CLOSE = "✅ Закрити"
 

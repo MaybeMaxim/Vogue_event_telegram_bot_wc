@@ -22,6 +22,8 @@ import html
 import logging
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from aiogram import Bot
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -391,8 +393,61 @@ async def startup_flush() -> None:
     logger.info("Ticker startup flush complete (now=%s UTC)", now.strftime("%H:%M"))
 
 
+_MORNING_BROADCAST_TIME = datetime(2026, 6, 25, 7, 30, tzinfo=ZoneInfo("Europe/Kyiv"))
+_MORNING_BROADCAST_GRACE = timedelta(minutes=30)
+_MORNING_FLAG = Path("morning_broadcast_sent.flag")
+
+
+async def _send_morning_broadcast(bot: Bot) -> None:
+    """One-time morning broadcast for Day 2."""
+    if _MORNING_FLAG.exists():
+        logger.info("Morning broadcast already sent (flag exists), skipping.")
+        return
+
+    from db.crud.users import all_user_tg_ids
+    from texts.admin import MORNING_MSG_TEXT
+
+    async with async_session() as session:
+        tg_ids = await all_user_tg_ids(session)
+
+    sent = 0
+    for tg_id in tg_ids:
+        try:
+            await bot.send_message(tg_id, MORNING_MSG_TEXT)
+            sent += 1
+        except Exception:
+            logger.warning("Morning broadcast: failed to send to %s", tg_id)
+
+    _MORNING_FLAG.touch()
+    logger.info("Morning broadcast sent to %d users.", sent)
+
+
 def start_ticker(bot: Bot) -> AsyncIOScheduler:
     scheduler = AsyncIOScheduler(timezone="UTC")
     scheduler.add_job(tick, "interval", seconds=_TICK_SECONDS, args=[bot], id="ticker", max_instances=1)
+
+    # One-time morning broadcast for Day 2 (June 25, 07:30 Kyiv).
+    # Three cases handled:
+    #   1. Bot starts before 07:30  → schedule job for exact time.
+    #   2. Bot starts 07:30–08:00   → bot was briefly down; fire immediately on startup.
+    #   3. Bot starts after 08:00   → too late, skip.
+    # Flag file prevents double-send if bot restarts after a successful send.
+    if not _MORNING_FLAG.exists():
+        now_kyiv = datetime.now(ZoneInfo("Europe/Kyiv"))
+        if now_kyiv < _MORNING_BROADCAST_TIME:
+            scheduler.add_job(
+                _send_morning_broadcast, "date",
+                run_date=_MORNING_BROADCAST_TIME,
+                args=[bot], id="morning_broadcast",
+            )
+            logger.info("Morning broadcast scheduled for %s Kyiv.", _MORNING_BROADCAST_TIME.strftime("%H:%M"))
+        elif now_kyiv < _MORNING_BROADCAST_TIME + _MORNING_BROADCAST_GRACE:
+            scheduler.add_job(
+                _send_morning_broadcast, "date",
+                run_date=datetime.now(timezone.utc) + timedelta(seconds=5),
+                args=[bot], id="morning_broadcast",
+            )
+            logger.info("Morning broadcast: bot was down at target time — firing in 5 s.")
+
     scheduler.start()
     return scheduler
