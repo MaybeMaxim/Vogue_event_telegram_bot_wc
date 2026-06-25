@@ -39,9 +39,10 @@ from keyboards.admin import (
     guest_card_keyboard,
     participants_keyboard,
 )
+from scheduler.ticker import schedule_broadcast, send_broadcast_to_all
 from services import booking_actions as actions
 from services import export_service
-from states.admin import AdminAdd, AdminSearch
+from states.admin import AdminAdd, AdminBroadcast, AdminSearch
 from texts import admin as t
 from utils.time_utils import format_time, format_time_range
 
@@ -608,3 +609,82 @@ async def cmd_remove_admin(message: Message, session: AsyncSession) -> None:
         return
     remove_admin_from_cache(tg_id)
     await message.answer(f"✅ <code>{tg_id}</code> видалено з адміністраторів.")
+
+
+# ---------------------------------------------------------------------------
+# Broadcast
+# ---------------------------------------------------------------------------
+
+def _broadcast_choice_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=t.BROADCAST_NOW_BTN, callback_data="adm:broadcast:now")],
+        [InlineKeyboardButton(text=t.BROADCAST_SCHEDULE_BTN, callback_data="adm:broadcast:schedule")],
+        [InlineKeyboardButton(text=t.BROADCAST_CANCEL_BTN, callback_data="adm:menu")],
+    ])
+
+
+@router.callback_query(F.data == "adm:broadcast")
+async def broadcast_start(callback: CallbackQuery, state: FSMContext) -> None:
+    await state.set_state(AdminBroadcast.waiting_for_text)
+    await callback.message.edit_text(t.BROADCAST_ASK_TEXT)
+    await callback.answer()
+
+
+@router.message(AdminBroadcast.waiting_for_text, IsAdmin())
+async def broadcast_got_text(message: Message, state: FSMContext) -> None:
+    text = message.text or ""
+    await state.update_data(text=text)
+    await state.set_state(None)
+    await message.answer(
+        t.BROADCAST_PREVIEW.format(text=html.escape(text)),
+        reply_markup=_broadcast_choice_keyboard(),
+    )
+
+
+@router.callback_query(F.data == "adm:broadcast:now")
+async def broadcast_send_now(callback: CallbackQuery, state: FSMContext, bot: Bot) -> None:
+    data = await state.get_data()
+    text = data.get("text", "")
+    await state.clear()
+    await callback.answer("Надсилаю…")
+    sent = await send_broadcast_to_all(bot, text)
+    await callback.message.edit_text(
+        t.BROADCAST_SENT.format(count=sent),
+        reply_markup=back_to_menu_keyboard(),
+    )
+
+
+@router.callback_query(F.data == "adm:broadcast:schedule")
+async def broadcast_ask_time(callback: CallbackQuery, state: FSMContext) -> None:
+    await state.set_state(AdminBroadcast.waiting_for_time)
+    await callback.message.edit_text(t.BROADCAST_ASK_TIME)
+    await callback.answer()
+
+
+@router.message(AdminBroadcast.waiting_for_time, IsAdmin())
+async def broadcast_got_time(message: Message, state: FSMContext, bot: Bot) -> None:
+    from zoneinfo import ZoneInfo
+    from datetime import date
+    raw = (message.text or "").strip()
+    try:
+        h, m = map(int, raw.split(":"))
+        assert 0 <= h <= 23 and 0 <= m <= 59
+    except Exception:
+        await message.answer(t.BROADCAST_BAD_TIME)
+        return
+
+    tz_kyiv = ZoneInfo("Europe/Kyiv")
+    now_kyiv = datetime.now(tz_kyiv)
+    run_at = datetime(now_kyiv.year, now_kyiv.month, now_kyiv.day, h, m, tzinfo=tz_kyiv)
+    if run_at <= now_kyiv:
+        await message.answer(t.BROADCAST_TIME_PAST)
+        return
+
+    data = await state.get_data()
+    text = data.get("text", "")
+    await state.clear()
+    schedule_broadcast(bot, text, run_at)
+    await message.answer(
+        t.BROADCAST_SCHEDULED.format(time=run_at.strftime("%H:%M")),
+        reply_markup=back_to_menu_keyboard(),
+    )

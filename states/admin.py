@@ -11,3 +11,8 @@ class AdminAdd(StatesGroup):
     """Manual-add flow: after picking an activity, search for the guest."""
 
     waiting_for_query = State()
+
+
+class AdminBroadcast(StatesGroup):
+    waiting_for_text = State()
+    waiting_for_time = State()

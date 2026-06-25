@@ -393,6 +393,39 @@ async def startup_flush() -> None:
     logger.info("Ticker startup flush complete (now=%s UTC)", now.strftime("%H:%M"))
 
 
+_scheduler: AsyncIOScheduler | None = None
+
+
+async def send_broadcast_to_all(bot: Bot, text: str) -> int:
+    """Send a message to every registered user. Returns count of successful sends."""
+    from db.crud.users import all_user_tg_ids
+    async with async_session() as session:
+        tg_ids = await all_user_tg_ids(session)
+    sent = 0
+    for tg_id in tg_ids:
+        try:
+            await bot.send_message(tg_id, text)
+            sent += 1
+        except Exception:
+            logger.warning("Broadcast: failed to send to %s", tg_id)
+    logger.info("Broadcast sent to %d users.", sent)
+    return sent
+
+
+def schedule_broadcast(bot: Bot, text: str, run_at: datetime) -> None:
+    """Schedule a one-time broadcast at run_at (timezone-aware datetime)."""
+    if _scheduler is None:
+        raise RuntimeError("Scheduler not started yet")
+    job_id = f"adm_broadcast_{int(run_at.timestamp())}"
+    _scheduler.add_job(
+        send_broadcast_to_all, "date",
+        run_date=run_at,
+        args=[bot, text],
+        id=job_id,
+    )
+    logger.info("Broadcast scheduled for %s", run_at.strftime("%H:%M %Z"))
+
+
 _MORNING_BROADCAST_TIME = datetime(2026, 6, 25, 7, 30, tzinfo=ZoneInfo("Europe/Kyiv"))
 _MORNING_BROADCAST_GRACE = timedelta(minutes=30)
 _MORNING_FLAG = Path("morning_broadcast_sent.flag")
@@ -423,7 +456,9 @@ async def _send_morning_broadcast(bot: Bot) -> None:
 
 
 def start_ticker(bot: Bot) -> AsyncIOScheduler:
+    global _scheduler
     scheduler = AsyncIOScheduler(timezone="UTC")
+    _scheduler = scheduler
     scheduler.add_job(tick, "interval", seconds=_TICK_SECONDS, args=[bot], id="ticker", max_instances=1)
 
     # One-time morning broadcast for Day 2 (June 25, 07:30 Kyiv).
